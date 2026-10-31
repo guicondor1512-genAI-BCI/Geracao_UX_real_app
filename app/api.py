@@ -82,7 +82,7 @@ def decide(run_id: str, decision: dict) -> None:
 def create_run(body: NewRun) -> dict:
     ws.ensure()
     pending = ws.read_run_status()
-    if pending and pending["status"] != "done" and not body.force:
+    if pending and pending["status"] in ("running", "paused") and not body.force:
         raise HTTPException(409, f"Run {pending['run_id']} esta '{pending['status']}'; use force para iniciar outra.")
     run_id = ws.new_run_id()
     RUNS[run_id] = {"notes": [], "result": None, "error": None, "review": None}

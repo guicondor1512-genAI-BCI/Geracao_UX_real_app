@@ -169,7 +169,7 @@ def ingest(state: RunState) -> RunState:
     themed = False
     if state.get("stitch_dir"):
         shutil.copytree(Path(state["stitch_dir"]), current / "stitch", ignore=shutil.ignore_patterns("*.png", "*.md"))
-        themed = theme.apply_theme(current / "stitch", frontend / "src" / "index.html")
+        themed = theme.apply_theme(current / "stitch", frontend / "src" / "index.html", frontend / "src" / "styles.css")
     ws.write_run_status(run_id, "running")
     ws.write_metadata(
         run_id,

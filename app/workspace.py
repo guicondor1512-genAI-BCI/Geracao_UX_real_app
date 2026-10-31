@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 ROOT = Path(os.getenv("BUILDER_WORKSPACE", Path(__file__).resolve().parent.parent / "workspace"))
@@ -23,6 +24,23 @@ def ensure() -> Path:
     for d in SUBDIRS:
         (ROOT / d).mkdir(parents=True, exist_ok=True)
     return ROOT
+
+
+def validate_skills() -> list[str]:
+    """Nomes das skills em workspace/skills; levanta ValueError se um SKILL.md tiver frontmatter invalido ou sem name.
+
+    O deepagents ignora silenciosamente uma skill invalida (aconteceu com `integration`): aqui a run nem comeca."""
+    names = []
+    for path in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        parts = path.read_text(encoding="utf-8").split("---")
+        try:
+            meta = yaml.safe_load(parts[1]) if len(parts) > 2 else None
+        except yaml.YAMLError as e:
+            raise ValueError(f"{path}: frontmatter YAML invalido: {e}") from e
+        if not isinstance(meta, dict) or not meta.get("name") or not meta.get("description"):
+            raise ValueError(f"{path}: frontmatter precisa de name e description")
+        names.append(str(meta["name"]))
+    return names
 
 
 def new_run_id() -> str:

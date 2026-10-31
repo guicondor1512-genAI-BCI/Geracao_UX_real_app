@@ -81,7 +81,8 @@ def test_full_run(tmp_path: Path):
 STITCH_HTML = (
     '<html><head><link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet"/>'
     '<script src="https://cdn.tailwindcss.com?plugins=forms"></script>'
-    '<script id="tailwind-config">tailwind.config = {theme: {extend: {colors: {primary: "#123456"}}}}</script>'
+    '<script id="tailwind-config">tailwind.config = '
+    '{darkMode: "class", theme: {extend: {"colors": {"primary": "#123456"}}}}</script>'
     "</head><body><main>Tela</main></body></html>"
 )
 
@@ -99,6 +100,7 @@ def test_ingest_copies_stitch_html_and_theme(tmp_path: Path):
     assert (ws.ROOT / "current" / "stitch" / "home.html").exists()
     assert not (ws.ROOT / "current" / "stitch" / "home.png").exists()
     index = (ws.ROOT / ws.FRONTEND / "src" / "index.html").read_text()
-    assert 'id="tailwind-config"' in index and "plugins=forms" in index and "family=Inter" in index
-    assert '<script src="https://cdn.tailwindcss.com"></script>' not in index
+    styles = (ws.ROOT / ws.FRONTEND / "src" / "styles.css").read_text()
+    assert "family=Inter" in index and "cdn.tailwindcss.com" not in index
+    assert '@import "tailwindcss";' in styles and "--color-primary: #123456;" in styles
     assert ws.read_events("run_s")[0]["stitch_theme"] is True

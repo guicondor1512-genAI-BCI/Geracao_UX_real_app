@@ -25,7 +25,7 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 
 | Fase | Quem | O que faz |
 |---|---|---|
-| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html`, injeta a config Tailwind do Stitch em `src/index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
+| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html`, converte a config Tailwind v3 do Stitch num bloco `@theme` v4 em `src/styles.css` e leva as fontes ao `index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
 | `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, design tokens e layout do Stitch, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
 | `review_architecture` | revisor humano | pausa (`interrupt()`) com `architecture.md` e `plan.md`: aprovar segue; feedback grava `current/feedback.md` e volta ao `architect` (`revise_architecture`, até `MAX_REVIEW_ROUNDS`, default 3; depois segue com aviso). Terminal pergunta; API deixa a run `paused` até `POST /runs/{id}/decision`; `--auto-approve` pula |
 | `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`; cada tela converte o HTML do Stitch em `src/app/screens/<id>/<id>.ts` (estrutura e classes preservadas, conteúdo vira signals e `@for`, estados loading/vazio/erro); depois `README.md` |
@@ -39,9 +39,10 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 
 O projeto alvo aparece para os agentes como `/project/` (`CompositeBackend`); o workspace continua em `/`.
 
-O projeto Angular base (package.json, angular.json, tsconfig, main.ts, index.html com Tailwind via CDN,
-`environments/environment.ts` com `apiBaseUrl`/`useMocks`, `app.config.ts` com HttpClient e Router) vem de
-`app/templates/angular/`; os agentes geram só `src/app/**` e `README.md`. O app roda sem backend (`useMocks: true`)
+O projeto Angular base (package.json com Tailwind v4 compilado no build via `.postcssrc.json`, angular.json, tsconfig, main.ts,
+index.html, `styles.css` com `@import "tailwindcss"` e o `@theme` do Stitch, `environments/environment.ts` com
+`apiBaseUrl`/`useMocks`, `app.config.ts` com HttpClient e Router em path routing) vem de `app/templates/angular/`; os agentes
+geram só `src/app/**` e `README.md`. O app roda sem backend (`useMocks: true`)
 com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato gerado do backend: a cada run com `--project`, o builder importa a
 app FastAPI no venv do projeto, chama `app.openapi()` e grava `current/openapi.json`, `current/contract.md` (tabela de rotas,
 corpos, respostas e schemas) e `src/app/core/models.ts` (uma interface por schema; nunca editado à mão). A checagem `contract`
@@ -111,7 +112,8 @@ uv run python -m app.main resume [RUN_ID]                      # retoma uma run 
 
 O terminal mostra cada fase e cada subagent (`-> architect iniciou`, `<- angular_coder terminou (120s)`), as checagens
 (`ngc`, `ng build`, `black`, `pytest`) e, no fim, duração, tokens, destino e o `git status` do projeto. Uma run por vez:
-com uma run pendente em `workspace/current/run.json`, use `resume`, `list` ou `--force`.
+com uma run `running` ou `paused` em `workspace/current/run.json`, use `resume`, `list` ou `--force` (uma run `failed` não
+bloqueia). As skills em `workspace/skills/` são validadas no início de cada run: frontmatter inválido aborta antes de gastar tokens.
 
 **Revisão da arquitetura (D3).** O ponto barato de corrigir é antes do código: após o `architect` (~5 min), o build pausa e
 mostra `current/architecture.md` (telas -> rotas -> arquivos, componentes de `/shared`, serviços, lotes). Aprovar segue para o
@@ -173,7 +175,9 @@ Angular para fora do volume do workspace.
 ### Depois de uma run
 
 `cd $P/frontend && npm install && npm start` (http://localhost:4200) com `uv run job-applier-web` no backend (porta 8501,
-CORS liberado para 4200). Para servir o build pelo FastAPI: `ng build --base-href /app/` e abra http://localhost:8501/app/.
+CORS liberado para 4200). Para servir o build pelo FastAPI: `npm run build:app` (`ng build --base-href /app/`) e abra
+http://localhost:8501/app/; o backend devolve `index.html` para qualquer rota sob `/app/` que não seja arquivo, então
+`/app/search-setup` e o refresh funcionam com path routing (sem `#`).
 Um único gerador de Angular (D1): no `ux-deep-agents`, `FRONTEND_CODER=0` pula o `frontend_coder`; o Angular vem só daqui,
 fiel às telas aprovadas no Stitch.
 
