@@ -4,15 +4,18 @@ POST /runs            {mode, project, to_ux?, ux_run?, dest?, force?} -> 202 {ru
 GET  /runs            runs conhecidas, mais recente primeiro, com status e uso
 GET  /runs/{run_id}   metadata + notas de progresso (+ erro, se falhou)
 GET  /runs/{run_id}/events   eventos do log jsonl
+POST /ask             {question, project?} -> {response}: pergunta ao agente (so leitura) sobre runs e projeto
 """
 
 import threading
 from argparse import Namespace
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from app import ask as qa
 from app import main as cli
 from app import workspace as ws
 
@@ -115,6 +118,24 @@ def get_events(run_id: str) -> list[dict]:
     if not (ws.ROOT / "logs" / f"{run_id}.jsonl").exists():
         raise HTTPException(404, "run sem log")
     return ws.read_events(run_id)
+
+
+class Query(BaseModel):
+    question: str
+    project: str | None = None
+    """Pasta do projeto alvo a montar em /project/ (opcional)."""
+
+
+@app.post("/ask")
+def ask(query: Query) -> dict:
+    """Responde uma pergunta sobre as runs, o workspace e o projeto alvo, com o deep agent em modo so leitura."""
+    project = Path(query.project).expanduser().resolve() if query.project else None
+    if project and not project.is_dir():
+        raise HTTPException(404, f"Projeto nao encontrado: {project}")
+    try:
+        return {"response": qa.run_agent(query.question, project)}
+    except Exception as e:
+        raise HTTPException(500, f"{type(e).__name__}: {e}"[:500])
 
 
 @app.get("/health")

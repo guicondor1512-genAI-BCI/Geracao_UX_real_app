@@ -246,7 +246,8 @@ def story():
             "(UV_PROJECT_ENVIRONMENT=/tmp/target-venv) para nao tocar no .venv do host. compose.yaml fixa os volumes e publica a API: sem argumentos o container sobe a API HTTP na porta 8000 "
             "(POST /runs inicia describe, build ou integrate em background; GET /runs, /runs/{id} e /runs/{id}/events dao status, "
             "metadata e log), e qualquer subcomando do CLI pode ser passado no lugar "
-            "(docker compose run --rm builder build --latest-ux-run --project /target)."
+            "(docker compose run --rm builder build --latest-ux-run --project /target). POST /ask responde de forma sincrona, com "
+            "um deep agent so de leitura, perguntas sobre as runs (metadata, logs, snapshots) e o projeto alvo."
         ),
         p("4. Resultados medidos (30/10/2026, projeto Job Applier)", H1),
         table(

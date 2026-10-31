@@ -77,6 +77,7 @@ uv run python -m app.main build --latest-ux-run --project $P   # 2. Angular em $
 uv run python -m app.main build --ux-run "~/UX Project/ux-deep-agents/workspace/runs/run_20261030_201036" --project $P
 uv run python -m app.main build spec.md --screens screens.json --stitch stitch-html/ --dest /outro/destino
 uv run python -m app.main integrate --project $P               # so a integracao, sobre um front-end ja entregue
+uv run python -m app.main ask "Quais telas a ultima run gerou?" --project $P   # Q&A so leitura sobre runs e projeto
 uv run python -m app.main list | resume [RUN_ID]               # --force inicia nova run mesmo com uma pendente
 ```
 
@@ -114,7 +115,13 @@ curl -X POST localhost:8010/runs -H 'content-type: application/json' \
 curl localhost:8010/runs                                # lista com status e uso
 curl localhost:8010/runs/<run_id>                       # metadata, notas de progresso, erro
 curl localhost:8010/runs/<run_id>/events                # log jsonl da run
+curl -X POST localhost:8010/ask -H 'content-type: application/json' \
+  -d '{"question": "A ultima run compilou? Quanto custou?", "project": "/target"}'   # {"response": "..."}
 ```
+
+`POST /ask` (e `python -m app.main ask "pergunta" [--project DIR]`) responde de forma síncrona com o deep agent em modo só
+leitura sobre `metadata/`, `logs/`, `current/`, `outputs/`, `runs/`, `skills/` e, se informado, o projeto em `/project/`;
+erros do agente voltam como 500 com o detalhe.
 
 Sem compose: `docker build -t frontend-builder .`, `docker run --rm -p 8010:8000 --env-file .env -v ... frontend-builder` (API) ou `docker run --rm --env-file .env -v ./workspace:/app/workspace -v <projeto>:/target -v "<ux>/workspace":/ux frontend-builder build --latest-ux-run --project /target`.
 
