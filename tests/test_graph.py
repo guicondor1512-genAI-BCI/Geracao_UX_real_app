@@ -60,7 +60,7 @@ def test_full_run(tmp_path: Path):
     agent = FakeAgent()
     graph = build_graph()
     result = graph.invoke(
-        {"input_path": str(spec), "run_id": "run_test", "dest_dir": str(dest)},
+        {"input_path": str(spec), "run_id": "run_test", "dest_dir": str(dest), "auto_approve": True},
         config={"configurable": {"thread_id": "run_test"}},
         context=GraphContext(agent=agent),
     )

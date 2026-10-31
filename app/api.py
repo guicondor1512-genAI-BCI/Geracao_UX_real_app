@@ -5,6 +5,7 @@ GET  /runs            runs conhecidas, mais recente primeiro, com status e uso
 GET  /runs/{run_id}   metadata + notas de progresso (+ erro, se falhou)
 GET  /runs/{run_id}/events   eventos do log jsonl
 POST /ask             {question, project?} -> {response}: pergunta ao agente (so leitura) sobre runs e projeto
+POST /runs/{run_id}/decision {approved, feedback?}  retoma uma run `paused` na revisao da arquitetura (D3)
 """
 
 import threading
@@ -31,6 +32,8 @@ class NewRun(BaseModel):
     """Snapshot de run do ux-deep-agents (build); sem ele, a run mais recente de UX_RUNS_DIR."""
     dest: str | None = None
     force: bool = False
+    auto_approve: bool = False
+    """true pula a revisao humana da arquitetura; false deixa a run `paused` ate POST /runs/{id}/decision."""
 
 
 def namespace(body: NewRun) -> Namespace:
@@ -46,14 +49,32 @@ def namespace(body: NewRun) -> Namespace:
         stitch=None,
         dest=body.dest,
         force=body.force,
+        auto_approve=body.auto_approve,
     )
+
+
+def _finish(entry: dict, result: dict) -> None:
+    """Resultado de um invoke: run pausada (payload da revisao) ou concluida."""
+    if "__interrupt__" in result:
+        entry["review"] = result["__interrupt__"][0].value
+    else:
+        entry["review"] = None
+        entry["result"] = result
 
 
 def work(run_id: str, args: Namespace) -> None:
     entry = RUNS[run_id]
     try:
-        entry["result"] = cli.launch(args, notify=entry["notes"].append, run_id=run_id)
+        _finish(entry, cli.launch(args, notify=entry["notes"].append, run_id=run_id))
     except (Exception, SystemExit) as e:  # sys.exit do CLI (projeto inexistente, spec ausente) vira erro da run
+        entry["error"] = f"{type(e).__name__}: {e}"[:2000]
+
+
+def decide(run_id: str, decision: dict) -> None:
+    entry = RUNS[run_id]
+    try:
+        _finish(entry, cli.continue_run(run_id, decision, notify=entry["notes"].append))
+    except (Exception, SystemExit) as e:
         entry["error"] = f"{type(e).__name__}: {e}"[:2000]
 
 
@@ -64,7 +85,7 @@ def create_run(body: NewRun) -> dict:
     if pending and pending["status"] != "done" and not body.force:
         raise HTTPException(409, f"Run {pending['run_id']} esta '{pending['status']}'; use force para iniciar outra.")
     run_id = ws.new_run_id()
-    RUNS[run_id] = {"notes": [], "result": None, "error": None}
+    RUNS[run_id] = {"notes": [], "result": None, "error": None, "review": None}
     thread = threading.Thread(target=work, args=(run_id, namespace(body)), daemon=True, name=run_id)
     RUNS[run_id]["thread"] = thread
     thread.start()
@@ -77,6 +98,8 @@ def status_of(run_id: str) -> str:
         return "failed"
     if entry and entry["thread"].is_alive():
         return "running"
+    if entry and entry.get("review"):
+        return "paused"
     meta = ws.read_metadata(run_id)
     return meta.get("status", "unknown") if meta else "unknown"
 
@@ -110,7 +133,28 @@ def get_run(run_id: str) -> dict:
         "metadata": meta,
         "notes": entry["notes"] if entry else [],
         "error": entry["error"] if entry else None,
+        "review": entry.get("review") if entry else None,
     }
+
+
+class Decision(BaseModel):
+    approved: bool
+    feedback: str = ""
+
+
+@app.post("/runs/{run_id}/decision", status_code=202)
+def post_decision(run_id: str, body: Decision) -> dict:
+    """Aprova a arquitetura ou devolve feedback; a run `paused` volta a rodar em background."""
+    entry = RUNS.get(run_id)
+    if entry is None:
+        raise HTTPException(404, "run desconhecida")
+    if entry["thread"].is_alive() or not entry.get("review"):
+        raise HTTPException(409, "a run nao esta pausada aguardando revisao")
+    entry["review"] = None
+    thread = threading.Thread(target=decide, args=(run_id, body.model_dump()), daemon=True, name=run_id)
+    entry["thread"] = thread
+    thread.start()
+    return {"run_id": run_id, "status": "running"}
 
 
 @app.get("/runs/{run_id}/events")

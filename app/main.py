@@ -3,6 +3,7 @@
   python -m app.main build --latest-ux-run [--project DIR]      Angular a partir da run mais recente do ux-deep-agents
   python -m app.main build --ux-run RUN_DIR [--project DIR]     idem, run especifica
   python -m app.main build SPEC.md [--screens J] [--reference D] [--project DIR] [--dest DIR]
+  (build pausa apos o architect para voce aprovar /current/architecture.md no terminal; --auto-approve pula)
   python -m app.main integrate --project DIR [--dest DIR]       so a integracao, sobre um front-end ja entregue
   python -m app.main serve [--host 0.0.0.0] [--port 8000]       API HTTP (app/api.py) com os mesmos comandos
   python -m app.main ask "pergunta" [--project DIR]             pergunta ao agente (so leitura) sobre runs e projeto
@@ -16,6 +17,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
+from langgraph.types import Command
 
 from app import workspace as ws
 from app.agent import build_agent
@@ -82,6 +84,7 @@ def build_inputs(args: argparse.Namespace) -> dict:
     project = project_of(args)
     inputs["project_dir"] = str(project) if project else None
     inputs["dest_dir"] = dest_of(args, project)
+    inputs["auto_approve"] = bool(getattr(args, "auto_approve", False))
     return {k: v for k, v in inputs.items() if v}
 
 
@@ -91,40 +94,87 @@ def guard_pending(force: bool) -> None:
         sys.exit(f"Run {pending['run_id']} esta '{pending['status']}'. Use resume, list ou --force.")
 
 
-def start(graph, project: Path | None, state: dict, label: str, notify=print, run_id: str | None = None) -> dict:
+def ask_reviewer(payload: dict) -> dict:
+    """Revisao da arquitetura no terminal (D3): aprovar, ou devolver correcoes para o architect."""
+    print("\n" + "=" * 70)
+    print(f"REVISAO DA ARQUITETURA (rodada {payload['round']}/{payload['max_rounds']})")
+    print("=" * 70)
+    print(payload.get("architecture") or "(current/architecture.md nao encontrado)")
+    print("-" * 70)
+    print(payload.get("summary", ""))
+    print("\nA arquitetura esta certa? [s] aprovar  |  [n] devolver correcoes")
+    if input("> ").strip().lower().startswith("s"):
+        return {"approved": True, "feedback": input("Comentario opcional: ").strip()}
+    print("Descreva o que mudar (linha vazia para terminar):")
+    lines: list[str] = []
+    while (line := input()) != "":
+        lines.append(line)
+    return {"approved": False, "feedback": "\n".join(lines)}
+
+
+def drive(graph, config: dict, context: GraphContext, result: dict, decide) -> dict:
+    """Responde aos interrupts com `decide(payload)` ate o grafo terminar; sem decide, devolve a run pausada."""
+    while "__interrupt__" in result and decide:
+        decision = decide(result["__interrupt__"][0].value)
+        result = graph.invoke(Command(resume=decision), config=config, context=context)
+    return result
+
+
+def start(graph, project, state: dict, label: str, notify=print, run_id: str | None = None, decide=None) -> dict:
     run_id = run_id or ws.new_run_id()
     notify(f"> {label} (run {run_id})")
     context = GraphContext(agent=build_agent(project), notify=notify)
-    return graph.invoke({**state, "run_id": run_id}, config={"configurable": {"thread_id": run_id}}, context=context)
+    config = {"configurable": {"thread_id": run_id}}
+    result = graph.invoke({**state, "run_id": run_id}, config=config, context=context)
+    return drive(graph, config, context, result, decide)
 
 
-def launch(args: argparse.Namespace, notify=print, run_id: str | None = None) -> dict:
-    """describe | integrate | build com os argumentos validados; usado pelo CLI e pela API."""
+def launch(args: argparse.Namespace, notify=print, run_id: str | None = None, decide=None) -> dict:
+    """describe | integrate | build com os argumentos validados; usado pelo CLI (decide pergunta no terminal) e pela API
+    (sem decide: a run volta pausada quando o grafo pede revisao)."""
     project = project_of(args)
     if args.command == "describe":
         state = {"project_dir": str(project), "to_ux": args.to_ux}
-        return start(build_describe_graph(), project, state, f"Descrevendo {project}", notify, run_id)
+        return start(build_describe_graph(), project, state, f"Descrevendo {project}", notify, run_id, decide)
     if args.command == "integrate":
         state = {"project_dir": str(project), "dest_dir": dest_of(args, project)}
-        return start(
-            build_integrate_graph(), project, state, f"Integrando {state['dest_dir']} a {project}", notify, run_id
-        )
+        label = f"Integrando {state['dest_dir']} a {project}"
+        return start(build_integrate_graph(), project, state, label, notify, run_id, decide)
     inputs = build_inputs(args)
-    return start(build_graph(), project, inputs, f"Construindo a partir de {inputs['input_path']}", notify, run_id)
+    label = f"Construindo a partir de {inputs['input_path']}"
+    return start(build_graph(), project, inputs, label, notify, run_id, decide)
+
+
+def graph_for(run_id: str):
+    """Grafo, config e contexto de uma run existente, pelo modo registrado em metadata/<run_id>.json."""
+    meta = ws.read_metadata(run_id) or {}
+    graphs = {"describe": build_describe_graph, "integrate": build_integrate_graph}
+    graph = graphs.get(meta.get("mode") or "", build_graph)()
+    project = Path(meta["project"]) if meta.get("project") else None
+    return graph, {"configurable": {"thread_id": run_id}}, project
+
+
+def continue_run(run_id: str, decision: dict, notify=print, decide=None) -> dict:
+    """Retoma uma run pausada na revisao com a decisao dada (API) e segue respondendo com decide, se houver."""
+    graph, config, project = graph_for(run_id)
+    context = GraphContext(agent=build_agent(project), notify=notify)
+    result = graph.invoke(Command(resume=decision), config=config, context=context)
+    return drive(graph, config, context, result, decide)
 
 
 def resume(run_id: str) -> dict:
-    """Retoma o grafo do modo registrado em metadata/<run_id>.json."""
-    meta = ws.write_metadata(run_id)
-    graphs = {"describe": build_describe_graph, "integrate": build_integrate_graph}
-    graph = graphs.get(meta.get("mode") or "", build_graph)()
-    config = {"configurable": {"thread_id": run_id}}
+    """Retoma o grafo de uma run: responde a revisao pendente no terminal ou reexecuta o no interrompido."""
+    graph, config, project = graph_for(run_id)
     snap = graph.get_state(config)
     if not snap.next:
         sys.exit(f"Run {run_id} nao tem etapa pendente (concluida ou inexistente).")
     print(f"> Retomando {run_id} em {', '.join(snap.next)}")
-    project = Path(meta["project"]) if meta.get("project") else None
-    return graph.invoke(None, config=config, context=GraphContext(agent=build_agent(project), notify=print))
+    context = GraphContext(agent=build_agent(project), notify=print)
+    if snap.interrupts:
+        result = graph.invoke(Command(resume=ask_reviewer(snap.interrupts[0].value)), config=config, context=context)
+    else:
+        result = graph.invoke(None, config=config, context=context)
+    return drive(graph, config, context, result, ask_reviewer)
 
 
 def list_runs() -> None:
@@ -135,7 +185,10 @@ def list_runs() -> None:
             status = f"failed ({ev.get('error_type')}: {ev.get('error', '')[:80]})"
         else:
             snap = graph.get_state({"configurable": {"thread_id": run_id}})
-            status = f"interrupted em {', '.join(snap.next)}" if snap.next else "done"
+            if snap.interrupts:
+                status = "paused (revisao da arquitetura: resume)"
+            else:
+                status = f"interrupted em {', '.join(snap.next)}" if snap.next else "done"
         t = ws.usage_report(run_id)["totals"]
         print(f"{run_id}  {status}  [{t['duration_s']}s, {t['total_tokens']} tokens]")
 
@@ -156,6 +209,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     b.add_argument("--latest-ux-run", action="store_true")
     b.add_argument("--project", help="pasta do projeto: destino <projeto>/frontend + fase de integracao")
     b.add_argument("--dest")
+    b.add_argument("--auto-approve", action="store_true", help="pula a revisao humana da arquitetura (CI)")
     b.add_argument("--force", action="store_true")
     i = sub.add_parser("integrate", help="integra um front-end ja entregue ao backend do projeto")
     i.add_argument("--project", required=True)
@@ -206,7 +260,7 @@ def main(argv: list[str] | None = None) -> None:
 
         return uvicorn.run("app.api:app", host=args.host, port=args.port)
     guard_pending(args.force)
-    report(launch(args))
+    report(launch(args, decide=ask_reviewer))
 
 
 if __name__ == "__main__":

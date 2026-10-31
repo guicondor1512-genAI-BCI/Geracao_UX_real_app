@@ -17,8 +17,9 @@ Todos os agentes usam `openai:gpt-6-luna` (`app/models.py`; `MODEL_<AGENTE>` sob
 
 ```
 describe:  ingest_project -> describe_phase (backend_analyst) -> finalize_describe
-build:     ingest -> plan_phase -> build_phase -> verify_frontend --(erros, ate MAX_FIX_ROUNDS)--> fix_phase -> verify_frontend
-                                            '--(ok)--> deliver (ng build + copia) -> [integrate_phase -> verify_integration] -> finalize
+build:     ingest -> plan_phase -> review_architecture --(aprovado | --auto-approve)--> build_phase -> verify_frontend --(erros)--> fix_phase
+                              ^          '-- revise_architecture <-- (feedback, ate MAX_REVIEW_ROUNDS)          '--(ok)--> deliver
+                                                                                        -> [integrate_phase -> verify_integration] -> finalize
 integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integration --(erros, 1 rodada)--> integrate_fix -> finalize
 ```
 
@@ -26,6 +27,7 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 |---|---|---|
 | `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html`, injeta a config Tailwind do Stitch em `src/index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
 | `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, design tokens e layout do Stitch, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
+| `review_architecture` | revisor humano | pausa (`interrupt()`) com `architecture.md` e `plan.md`: aprovar segue; feedback grava `current/feedback.md` e volta ao `architect` (`revise_architecture`, até `MAX_REVIEW_ROUNDS`, default 3; depois segue com aviso). Terminal pergunta; API deixa a run `paused` até `POST /runs/{id}/decision`; `--auto-approve` pula |
 | `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`; cada tela converte o HTML do Stitch em `src/app/screens/<id>/<id>.ts` (estrutura e classes preservadas, conteúdo vira signals e `@for`, estados loading/vazio/erro); depois `README.md` |
 | `verify_frontend` | pipeline | `ngc --noEmit` (strictTemplates) em `workspace/.angular_cache` |
 | `fix_phase` | orquestrador -> `angular_coder` | corrige só os arquivos citados pelo `ngc` |
@@ -84,7 +86,7 @@ status de outro sistema) e o **Docker** (imagem com tudo instalado, para rodar i
 
 ```bash
 uv sync                                   # Python 3.12 e dependências travadas (uv.lock)
-cp .env.example .env                      # OPENAI_API_KEY obrigatória; LangSmith opcional
+cp .env.example .env                      # OPENAI_API_KEY obrigatória; OPENROUTER_API_KEY (fallback em 429) e LangSmith opcionais
 node -v                                   # Node 22+ e npm, usados pelo ngc e ng build (não precisa no Docker)
 P=~/Codes/deepagents_jobapplier           # projeto alvo (backend FastAPI); o Angular vai para $P/frontend
 ```
@@ -97,17 +99,25 @@ Stitch -> `build` gera o Angular a partir dessa run e, com `--project`, já inte
 ```bash
 uv run python -m app.main describe --project $P --to-ux        # brief para o designer (+ cópia nos inputs do ux-deep-agents)
 uv run python -m app.main build --latest-ux-run --project $P   # Angular em $P/frontend + integração com o backend
+#   -> apos o architect, o terminal mostra current/architecture.md e pergunta: [s] aprovar | [n] devolver correcoes
+uv run python -m app.main build --latest-ux-run --project $P --auto-approve   # sem a pausa (CI, scripts)
 uv run python -m app.main build --ux-run "~/UX Project/ux-deep-agents/workspace/runs/run_20261030_205257" --project $P
 uv run python -m app.main build spec.md --screens screens.json --stitch stitch-html/ --dest /outro/destino
 uv run python -m app.main integrate --project $P               # só a integração, sobre um front-end já entregue
 uv run python -m app.main ask "Quais telas a última run gerou?" --project $P   # pergunta ao agente (só leitura)
 uv run python -m app.main list                                 # runs e status
-uv run python -m app.main resume [RUN_ID]                      # retoma uma run interrompida
+uv run python -m app.main resume [RUN_ID]                      # retoma uma run interrompida ou pausada na revisao
 ```
 
 O terminal mostra cada fase e cada subagent (`-> architect iniciou`, `<- angular_coder terminou (120s)`), as checagens
 (`ngc`, `ng build`, `black`, `pytest`) e, no fim, duração, tokens, destino e o `git status` do projeto. Uma run por vez:
 com uma run pendente em `workspace/current/run.json`, use `resume`, `list` ou `--force`.
+
+**Revisão da arquitetura (D3).** O ponto barato de corrigir é antes do código: após o `architect` (~5 min), o build pausa e
+mostra `current/architecture.md` (telas -> rotas -> arquivos, componentes de `/shared`, serviços, lotes). Aprovar segue para o
+build; devolver correções grava `current/feedback.md`, o `architect` revisa (1 a 2 min) e a pergunta volta, até
+`MAX_REVIEW_ROUNDS` (3); depois disso o build segue com aviso e as pendências vão aos `angular_coder`. Fechar o terminal no
+meio deixa a run `paused`; `resume` reabre a pergunta.
 
 ### 2. Web (API HTTP)
 
@@ -121,7 +131,10 @@ Os mesmos comandos viram requisições; as runs rodam em background, uma por vez
 curl -X POST localhost:8010/runs -H 'content-type: application/json' \
   -d '{"mode": "describe", "project": "'$P'", "to_ux": true}'
 curl -X POST localhost:8010/runs -H 'content-type: application/json' \
-  -d '{"mode": "build", "project": "'$P'"}'        # ux_run opcional; sem ele, a run mais recente do UX
+  -d '{"mode": "build", "project": "'$P'"}'        # ux_run opcional; sem ele, a run mais recente do UX; auto_approve pula a revisao
+curl localhost:8010/runs/<run_id>                  # status "paused": campo review traz round, architecture e plan
+curl -X POST localhost:8010/runs/<run_id>/decision -H 'content-type: application/json' \
+  -d '{"approved": false, "feedback": "junte as telas de busca num lote"}'   # ou {"approved": true}
 curl localhost:8010/runs                           # lista com status e uso
 curl localhost:8010/runs/<run_id>                  # metadata, notas de progresso, erro
 curl localhost:8010/runs/<run_id>/events           # log jsonl da run
@@ -167,7 +180,7 @@ fiel às telas aprovadas no Stitch.
 ### Variáveis
 
 `OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_BACKEND_ANALYST`, `MODEL_INTEGRATOR`, `MODEL_ASK`,
-`MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
+`OPENROUTER_API_KEY` (fallback do mesmo modelo no OpenRouter em 429/5xx), `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `MAX_REVIEW_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
 `PROJECT_FORMAT_CMD`, `PROJECT_CMD_PREFIX` (prefixo dos comandos no projeto, ex.: `UV_PROJECT_ENVIRONMENT=...`), `OPENAPI_APP`
 (app FastAPI a importar, default `job_applier.main:app`), `OPENAPI_URL` (buscar o schema de um servidor no ar), `BUILDER_WORKSPACE`,
 `ANGULAR_CACHE`, bloco LangSmith.
