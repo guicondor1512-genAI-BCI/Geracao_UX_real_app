@@ -10,6 +10,7 @@ DEFAULTS = {
     "angular_coder": LUNA,
     "backend_analyst": LUNA,
     "integrator": LUNA,
+    "ask": LUNA,
 }
 """gpt-6-luna e o modelo mais barato da familia GPT-6 (US$ 0,10 / 0,50 por 1M tokens) e gerou o prototipo Angular
 do ux-deep-agents compilando com strictTemplates; troque uma entrada para rotear um agente a outro modelo."""

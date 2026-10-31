@@ -5,6 +5,7 @@
   python -m app.main build SPEC.md [--screens J] [--reference D] [--project DIR] [--dest DIR]
   python -m app.main integrate --project DIR [--dest DIR]       so a integracao, sobre um front-end ja entregue
   python -m app.main serve [--host 0.0.0.0] [--port 8000]       API HTTP (app/api.py) com os mesmos comandos
+  python -m app.main ask "pergunta" [--project DIR]             pergunta ao agente (so leitura) sobre runs e projeto
   python -m app.main list | resume [RUN_ID]
 Com --project, o Angular final vai para <projeto>/frontend e a fase de integracao adapta back e front.
 """
@@ -164,6 +165,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     v = sub.add_parser("serve", help="API HTTP: POST /runs, GET /runs, GET /runs/{id}, GET /runs/{id}/events")
     v.add_argument("--host", default="0.0.0.0")
     v.add_argument("--port", type=int, default=8000)
+    a = sub.add_parser("ask", help="pergunta ao agente sobre as runs, o workspace e o projeto alvo")
+    a.add_argument("question")
+    a.add_argument("--project")
     r = sub.add_parser("resume")
     r.add_argument("run_id", nargs="?")
     sub.add_parser("list")
@@ -194,6 +198,10 @@ def main(argv: list[str] | None = None) -> None:
         if not run_id:
             sys.exit("Nenhuma run para retomar: informe o RUN_ID")
         return report(resume(run_id))
+    if args.command == "ask":
+        from app.ask import run_agent
+
+        return print(run_agent(args.question, project_of(args)))
     if args.command == "serve":
         import uvicorn
 
