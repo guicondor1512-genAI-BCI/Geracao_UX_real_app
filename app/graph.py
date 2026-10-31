@@ -8,7 +8,7 @@ A integracao (app/integrate.py) so entra quando um projeto alvo (--project) e in
 import os
 import shutil
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypedDict
@@ -83,7 +83,7 @@ def _tokens(usage: UsageMetadataCallbackHandler) -> dict:
     totals = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     for m in usage.usage_metadata.values():
         for k in totals:
-            totals[k] += m.get(k, 0)
+            totals[k] += int(m.get(k, 0))
     return {**totals, "models": {name: m.get("total_tokens", 0) for name, m in usage.usage_metadata.items()}}
 
 
@@ -94,7 +94,7 @@ def _parallel_task_calls(messages: list) -> int:
     )
 
 
-def _invoke(runtime: Runtime[GraphContext], state: RunState, phase: str, instruction: str) -> str:
+def _invoke(runtime: Runtime[GraphContext], state: Mapping[str, Any], phase: str, instruction: str) -> str:
     """Invoca o deep agent na mesma thread por run e grava `<phase>_end` com duracao e tokens; falha vira `failed`."""
     usage = UsageMetadataCallbackHandler()
     callbacks: list = [usage]

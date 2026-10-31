@@ -116,9 +116,8 @@ def launch(args: argparse.Namespace, notify=print, run_id: str | None = None) ->
 def resume(run_id: str) -> dict:
     """Retoma o grafo do modo registrado em metadata/<run_id>.json."""
     meta = ws.write_metadata(run_id)
-    graph = {"describe": build_describe_graph(), "integrate": build_integrate_graph()}.get(
-        meta.get("mode"), build_graph()
-    )
+    graphs = {"describe": build_describe_graph, "integrate": build_integrate_graph}
+    graph = graphs.get(meta.get("mode") or "", build_graph)()
     config = {"configurable": {"thread_id": run_id}}
     snap = graph.get_state(config)
     if not snap.next:
