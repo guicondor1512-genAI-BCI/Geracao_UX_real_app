@@ -495,7 +495,7 @@ def story():
                 ],
                 [
                     "10",
-                    "Publicar a imagem Docker no GHCR pela CI (ruff + pytest + build da imagem) e rodar o builder como job agendado a cada mudanca de API do projeto alvo",
+                    "Feito: CI (ruff + pytest + build) publica a imagem no GHCR a cada push na main (tags versao, latest e sha). Proximo: rodar o builder como job agendado a cada mudanca de API do projeto alvo",
                     "Operacao",
                     "1 dia",
                 ],

@@ -122,6 +122,25 @@ Na integração, os testes do projeto alvo rodam dentro do container com `UV_PRO
 (`PROJECT_TEST_CMD` na imagem), para não tocar no `.venv` do host montado em `/target`. `ANGULAR_CACHE` aponta o cache
 Angular para fora do volume do workspace.
 
+### Versionar e publicar a imagem
+
+A CI (`.github/workflows/ci.yml`) roda ruff, pytest e o build da imagem em cada PR; em cada push na `main` publica
+`ghcr.io/guicondor1512-genai-bci/frontend-builder` com três tags: a `version` do `pyproject.toml`, `latest` e `sha-<commit>`.
+Para lançar uma versão, suba `version` no `pyproject.toml` no PR. Para usar a imagem publicada, troque `build: .` por
+`image: ghcr.io/guicondor1512-genai-bci/frontend-builder:latest` no `compose.yaml` (ou `docker pull`).
+
+Publicação manual (exige o escopo `write:packages` no token do `gh`):
+
+```bash
+gh auth refresh -s write:packages
+gh auth token | docker login ghcr.io -u guicondor1512-genAI-BCI --password-stdin
+IMAGE=ghcr.io/guicondor1512-genai-bci/frontend-builder
+VERSION=$(grep -m1 '^version' pyproject.toml | cut -d '"' -f2)
+docker build -t frontend-builder .
+docker tag frontend-builder "$IMAGE:$VERSION" && docker tag frontend-builder "$IMAGE:latest"
+docker push "$IMAGE:$VERSION" && docker push "$IMAGE:latest"
+```
+
 ## Testes e lint
 
 ```bash
