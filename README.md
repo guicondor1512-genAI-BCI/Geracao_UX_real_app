@@ -98,13 +98,25 @@ como volumes (`compose.yaml`): `./workspace` em `/app/workspace`, o projeto em `
 
 ```bash
 docker compose build
+docker compose up -d                        # API em http://localhost:8010 (Swagger em /docs); BUILDER_PORT muda a porta
 docker compose run --rm builder describe --project /target --to-ux
 docker compose run --rm builder build --latest-ux-run --project /target
 docker compose run --rm builder integrate --project /target
 docker compose run --rm builder list
 ```
 
-Sem compose: `docker build -t frontend-builder .` e `docker run --rm --env-file .env -v ./workspace:/app/workspace -v <projeto>:/target -v "<ux>/workspace":/ux frontend-builder build --latest-ux-run --project /target`.
+A API (`serve`, `app/api.py`) roda os mesmos comandos em background, uma run por vez. No host ela sai na 8010 porque a
+interface web do `ux-deep-agents` usa a 8000; dentro do container a porta é 8000:
+
+```bash
+curl -X POST localhost:8010/runs -H 'content-type: application/json' \
+  -d '{"mode": "build", "project": "/target"}'          # ux_run opcional; sem ele, a run mais recente do UX
+curl localhost:8010/runs                                # lista com status e uso
+curl localhost:8010/runs/<run_id>                       # metadata, notas de progresso, erro
+curl localhost:8010/runs/<run_id>/events                # log jsonl da run
+```
+
+Sem compose: `docker build -t frontend-builder .`, `docker run --rm -p 8010:8000 --env-file .env -v ... frontend-builder` (API) ou `docker run --rm --env-file .env -v ./workspace:/app/workspace -v <projeto>:/target -v "<ux>/workspace":/ux frontend-builder build --latest-ux-run --project /target`.
 
 Na integração, os testes do projeto alvo rodam dentro do container com `UV_PROJECT_ENVIRONMENT=/tmp/target-venv`
 (`PROJECT_TEST_CMD` na imagem), para não tocar no `.venv` do host montado em `/target`. `ANGULAR_CACHE` aponta o cache

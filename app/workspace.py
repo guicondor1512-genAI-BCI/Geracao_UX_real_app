@@ -67,6 +67,11 @@ def write_metadata(run_id: str, **data) -> dict:
     return current
 
 
+def read_metadata(run_id: str) -> dict | None:
+    path = ROOT / "metadata" / f"{run_id}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
 def list_run_ids() -> list[str]:
     return sorted(p.stem for p in (ROOT / "logs").glob("run_*.jsonl"))
 

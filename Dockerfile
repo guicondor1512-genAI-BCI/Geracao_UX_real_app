@@ -35,5 +35,7 @@ COPY workspace/skills ./workspace/skills
 RUN mkdir -p workspace/inputs workspace/current workspace/outputs workspace/logs workspace/metadata workspace/runs workspace/archive
 
 VOLUME ["/app/workspace"]
+EXPOSE 8000
 ENTRYPOINT ["/app/.venv/bin/python", "-m", "app.main"]
-CMD ["--help"]
+# Sem argumentos a imagem sobe a API em :8000; qualquer subcomando do CLI pode ser passado no lugar.
+CMD ["serve"]

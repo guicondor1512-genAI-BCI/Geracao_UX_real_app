@@ -4,6 +4,7 @@
   python -m app.main build --ux-run RUN_DIR [--project DIR]     idem, run especifica
   python -m app.main build SPEC.md [--screens J] [--reference D] [--project DIR] [--dest DIR]
   python -m app.main integrate --project DIR [--dest DIR]       so a integracao, sobre um front-end ja entregue
+  python -m app.main serve [--host 0.0.0.0] [--port 8000]       API HTTP (app/api.py) com os mesmos comandos
   python -m app.main list | resume [RUN_ID]
 Com --project, o Angular final vai para <projeto>/frontend e a fase de integracao adapta back e front.
 """
@@ -89,11 +90,26 @@ def guard_pending(force: bool) -> None:
         sys.exit(f"Run {pending['run_id']} esta '{pending['status']}'. Use resume, list ou --force.")
 
 
-def start(graph, project: Path | None, state: dict, label: str) -> dict:
-    run_id = ws.new_run_id()
-    print(f"> {label} (run {run_id})")
-    context = GraphContext(agent=build_agent(project), notify=print)
+def start(graph, project: Path | None, state: dict, label: str, notify=print, run_id: str | None = None) -> dict:
+    run_id = run_id or ws.new_run_id()
+    notify(f"> {label} (run {run_id})")
+    context = GraphContext(agent=build_agent(project), notify=notify)
     return graph.invoke({**state, "run_id": run_id}, config={"configurable": {"thread_id": run_id}}, context=context)
+
+
+def launch(args: argparse.Namespace, notify=print, run_id: str | None = None) -> dict:
+    """describe | integrate | build com os argumentos validados; usado pelo CLI e pela API."""
+    project = project_of(args)
+    if args.command == "describe":
+        state = {"project_dir": str(project), "to_ux": args.to_ux}
+        return start(build_describe_graph(), project, state, f"Descrevendo {project}", notify, run_id)
+    if args.command == "integrate":
+        state = {"project_dir": str(project), "dest_dir": dest_of(args, project)}
+        return start(
+            build_integrate_graph(), project, state, f"Integrando {state['dest_dir']} a {project}", notify, run_id
+        )
+    inputs = build_inputs(args)
+    return start(build_graph(), project, inputs, f"Construindo a partir de {inputs['input_path']}", notify, run_id)
 
 
 def resume(run_id: str) -> dict:
@@ -145,6 +161,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     i.add_argument("--project", required=True)
     i.add_argument("--dest", help="pasta do front-end (default: <projeto>/frontend)")
     i.add_argument("--force", action="store_true")
+    v = sub.add_parser("serve", help="API HTTP: POST /runs, GET /runs, GET /runs/{id}, GET /runs/{id}/events")
+    v.add_argument("--host", default="0.0.0.0")
+    v.add_argument("--port", type=int, default=8000)
     r = sub.add_parser("resume")
     r.add_argument("run_id", nargs="?")
     sub.add_parser("list")
@@ -175,17 +194,12 @@ def main(argv: list[str] | None = None) -> None:
         if not run_id:
             sys.exit("Nenhuma run para retomar: informe o RUN_ID")
         return report(resume(run_id))
+    if args.command == "serve":
+        import uvicorn
+
+        return uvicorn.run("app.api:app", host=args.host, port=args.port)
     guard_pending(args.force)
-    if args.command == "describe":
-        project = project_of(args)
-        state = {"project_dir": str(project), "to_ux": args.to_ux}
-        return report(start(build_describe_graph(), project, state, f"Descrevendo {project}"))
-    if args.command == "integrate":
-        project = project_of(args)
-        state = {"project_dir": str(project), "dest_dir": dest_of(args, project)}
-        return report(start(build_integrate_graph(), project, state, f"Integrando {state['dest_dir']} a {project}"))
-    inputs = build_inputs(args)
-    report(start(build_graph(), project_of(args), inputs, f"Construindo a partir de {inputs['input_path']}"))
+    report(launch(args))
 
 
 if __name__ == "__main__":
