@@ -21,7 +21,7 @@ os estados (loading/vazio/erro) que o HTML estatico nao mostra. Nunca copie <htm
 ## Layout de pastas (gere exatamente assim)
 - src/app/app.ts                       -> `App` (selector app-root): shell com header, nav (routerLink + routerLinkActive) e <router-outlet />
 - src/app/app.routes.ts                -> uma rota por tela com `loadComponent: () => import('./screens/<id>/<id>').then(m => m.<Pascal>Screen)`; '' redireciona para a primeira; '**' para uma tela not-found simples
-- src/app/core/models.ts               -> tipos TypeScript espelhando o contrato do backend (skill jobapplier-api)
+- src/app/core/models.ts               -> GERADO do openapi.json do backend (skill api-contract); nunca edite; tipos extras em core/types.ts
 - src/app/core/api/job-applier-api.ts  -> `export abstract class JobApplierApi { ... }` com um metodo por endpoint (retorna Observable<T> ou Promise<T>)
 - src/app/core/api/http-job-applier-api.ts -> `HttpJobApplierApi extends JobApplierApi` com HttpClient e environment.apiBaseUrl
 - src/app/core/api/mock-job-applier-api.ts -> `MockJobApplierApi extends JobApplierApi` com dados de core/mock e `delay()` curto
