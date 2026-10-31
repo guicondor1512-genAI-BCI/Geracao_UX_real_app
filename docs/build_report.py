@@ -237,6 +237,15 @@ def story():
             "<i>ng build</i> de producao; o backend por black e pela suite de testes; o brief pela checagem das 10 secoes. "
             "Os erros voltam ao subagent como texto do compilador, por arquivo."
         ),
+        p("3.5 Empacotamento (Docker)", H2),
+        p(
+            "A imagem (python:3.12-slim + uv + Node 22) instala as dependencias travadas do uv.lock e o cache Angular (template + "
+            "node_modules) em /opt/angular_cache, fora do volume do workspace, entao ngc e ng build rodam sem rede. O workspace "
+            "(/app/workspace), o projeto alvo (/target) e o workspace do ux-deep-agents (/ux) sao volumes; o entrypoint e o CLI "
+            "(describe, build, integrate, list, resume). Os testes do projeto alvo rodam num venv proprio do container "
+            "(UV_PROJECT_ENVIRONMENT=/tmp/target-venv) para nao tocar no .venv do host. compose.yaml fixa os volumes: "
+            "docker compose run --rm builder build --latest-ux-run --project /target."
+        ),
         p("4. Resultados medidos (30/10/2026, projeto Job Applier)", H1),
         table(
             [
@@ -481,6 +490,12 @@ def story():
                     "Segundo projeto alvo com outro stack (ex.: Node/Express) para medir generalizacao e ajustar skills",
                     "D5, risco",
                     "2 dias",
+                ],
+                [
+                    "10",
+                    "Publicar a imagem Docker no GHCR pela CI (ruff + pytest + build da imagem) e rodar o builder como job agendado a cada mudanca de API do projeto alvo",
+                    "Operacao",
+                    "1 dia",
                 ],
             ],
             [1.8 * cm, 9.6 * cm, 2.6 * cm, 2.4 * cm],

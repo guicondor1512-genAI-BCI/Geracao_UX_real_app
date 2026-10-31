@@ -87,7 +87,28 @@ Depois: `cd $P/frontend && npm install && npm start` (http://localhost:4200) com
 (porta 8501, CORS liberado para 4200). Para servir o build pelo FastAPI: `ng build --base-href /app/` e abra http://localhost:8501/app/.
 
 Variáveis: `OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`,
-`FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`, `PROJECT_FORMAT_CMD`, `BUILDER_WORKSPACE`, bloco LangSmith.
+`FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`, `PROJECT_FORMAT_CMD`, `BUILDER_WORKSPACE`, `ANGULAR_CACHE`, bloco LangSmith.
+
+## Docker
+
+A imagem traz Python 3.12, `uv`, Node 22 e o cache Angular (template + `node_modules`) pré-instalado em `/opt/angular_cache`,
+então `ngc` e `ng build` funcionam sem rede em cada run. O workspace, o projeto alvo e o workspace do `ux-deep-agents` entram
+como volumes (`compose.yaml`): `./workspace` em `/app/workspace`, o projeto em `/target` e o workspace do UX em `/ux`
+(`TARGET_PROJECT` e `UX_WORKSPACE` sobrescrevem os caminhos).
+
+```bash
+docker compose build
+docker compose run --rm builder describe --project /target --to-ux
+docker compose run --rm builder build --latest-ux-run --project /target
+docker compose run --rm builder integrate --project /target
+docker compose run --rm builder list
+```
+
+Sem compose: `docker build -t frontend-builder .` e `docker run --rm --env-file .env -v ./workspace:/app/workspace -v <projeto>:/target -v "<ux>/workspace":/ux frontend-builder build --latest-ux-run --project /target`.
+
+Na integração, os testes do projeto alvo rodam dentro do container com `UV_PROJECT_ENVIRONMENT=/tmp/target-venv`
+(`PROJECT_TEST_CMD` na imagem), para não tocar no `.venv` do host montado em `/target`. `ANGULAR_CACHE` aponta o cache
+Angular para fora do volume do workspace.
 
 ## Testes e lint
 
