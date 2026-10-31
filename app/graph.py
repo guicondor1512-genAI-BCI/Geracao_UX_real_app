@@ -81,10 +81,11 @@ class _Progress(BaseCallbackHandler):
 
 def _tokens(usage: UsageMetadataCallbackHandler) -> dict:
     totals = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-    for m in usage.usage_metadata.values():
-        for k in totals:
-            totals[k] += int(m.get(k, 0))
-    return {**totals, "models": {name: m.get("total_tokens", 0) for name, m in usage.usage_metadata.items()}}
+    for m in usage.usage_metadata.values():  # UsageMetadata (TypedDict) por modelo
+        totals["input_tokens"] += m["input_tokens"]
+        totals["output_tokens"] += m["output_tokens"]
+        totals["total_tokens"] += m["total_tokens"]
+    return {**totals, "models": {name: m["total_tokens"] for name, m in usage.usage_metadata.items()}}
 
 
 def _parallel_task_calls(messages: list) -> int:
