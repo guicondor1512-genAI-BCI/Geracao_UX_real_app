@@ -7,7 +7,7 @@ from typing import cast
 from deepagents import SubAgent, create_deep_agent
 from langchain.chat_models import init_chat_model
 
-from app.models import model_name
+from app.models import fallback_middleware, model_name
 from app.project import backend
 from app.subagents import SUBAGENTS
 from app.tools.plan_tool import plan_tool
@@ -39,7 +39,10 @@ def _model(agent: str):
 
 def _subagent(spec: dict) -> SubAgent:
     tools = [TOOLS[name] for name in spec.get("tools", [])]
-    return cast(SubAgent, {**spec, "tools": tools, "model": _model(spec["name"])})
+    model = spec["name"]
+    return cast(
+        SubAgent, {**spec, "tools": tools, "model": _model(model), "middleware": fallback_middleware(model_name(model))}
+    )
 
 
 def build_agent(project_dir: Path | None = None):
@@ -48,6 +51,7 @@ def build_agent(project_dir: Path | None = None):
         model=_model("orchestrator"),
         tools=[plan_tool],
         system_prompt=ORCHESTRATOR_PROMPT,
+        middleware=fallback_middleware(model_name("orchestrator")),
         subagents=[_subagent(s) for s in SUBAGENTS],
         skills=["/skills/"],
         backend=backend(project_dir),

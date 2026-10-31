@@ -59,6 +59,7 @@ def test_build_with_project_runs_integration(project, tmp_path):
             "run_id": "run_b",
             "project_dir": str(project),
             "dest_dir": str(project / "frontend"),
+            "auto_approve": True,
         },
         config={"configurable": {"thread_id": "run_b"}},
         context=GraphContext(agent=agent),

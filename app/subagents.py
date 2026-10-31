@@ -6,6 +6,7 @@ COMMON = """Você trabalha dentro de um workspace (raiz virtual '/'). Entradas:
 - /current/stitch/<id>.html -> a tela APROVADA pelo designer no Google Stitch (HTML + Tailwind), uma por tela: é a fonte visual. Reproduza layout, hierarquia, cores e tipografia dela; a config do Tailwind (tema) já foi copiada para /outputs/frontend/src/index.html.
 - /current/reference/     -> protótipo Angular anterior (src/app/**), se existir: só para reaproveitar nomes e mocks; o visual vem do Stitch.
 - /current/architecture.md -> arquitetura decidida (telas -> rotas -> arquivos, shared, modelos, serviços); escrita pelo architect.
+- /current/feedback.md    -> correções do revisor humano sobre a arquitetura, se existir: TEM PRIORIDADE sobre suas suposições.
 - /current/contract.md e /outputs/frontend/src/app/core/models.ts -> contrato da API e tipos GERADOS do openapi.json do backend (quando há projeto): o cliente HTTP segue os dois; models.ts nunca se edita.
 Saída SOMENTE em /outputs/frontend/. Use ls/read_file/write_file/edit_file. Entregue arquivos, não explicações longas."""
 
