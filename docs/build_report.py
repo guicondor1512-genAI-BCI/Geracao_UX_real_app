@@ -243,8 +243,10 @@ def story():
             "node_modules) em /opt/angular_cache, fora do volume do workspace, entao ngc e ng build rodam sem rede. O workspace "
             "(/app/workspace), o projeto alvo (/target) e o workspace do ux-deep-agents (/ux) sao volumes; o entrypoint e o CLI "
             "(describe, build, integrate, list, resume). Os testes do projeto alvo rodam num venv proprio do container "
-            "(UV_PROJECT_ENVIRONMENT=/tmp/target-venv) para nao tocar no .venv do host. compose.yaml fixa os volumes: "
-            "docker compose run --rm builder build --latest-ux-run --project /target."
+            "(UV_PROJECT_ENVIRONMENT=/tmp/target-venv) para nao tocar no .venv do host. compose.yaml fixa os volumes e publica a API: sem argumentos o container sobe a API HTTP na porta 8000 "
+            "(POST /runs inicia describe, build ou integrate em background; GET /runs, /runs/{id} e /runs/{id}/events dao status, "
+            "metadata e log), e qualquer subcomando do CLI pode ser passado no lugar "
+            "(docker compose run --rm builder build --latest-ux-run --project /target)."
         ),
         p("4. Resultados medidos (30/10/2026, projeto Job Applier)", H1),
         table(
