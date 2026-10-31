@@ -4,9 +4,10 @@ Deep Agent (LangChain `deepagents`) orquestrado por **LangGraph** com três coma
 
 1. `describe`: lê o backend do projeto e gera o `.md` que explica o produto e seus fluxos para um designer prototipar as
    telas (entrada do microserviço `ux-deep-agents`, via "choose file" da interface web dele).
-2. `build`: constrói a aplicação **Angular 22** a partir do protótipo front-end que o `ux-deep-agents` gerou
-   (`outputs/prototypes/screens.md` + `screens.json` + protótipo de referência), grava em `<projeto>/frontend/` e,
-   com `--project`, segue para a integração.
+2. `build`: constrói a aplicação **Angular 22** a partir do protótipo front-end que o `ux-deep-agents` gerou:
+   `outputs/prototypes/screens.md` + `screens.json` (o que cada tela faz) e os **HTML das telas aprovadas no Stitch**
+   (`outputs/stitch/<slug>/<id>.html`, a fonte visual: layout, classes Tailwind, tema de cores e fontes). Grava em
+   `<projeto>/frontend/` e, com `--project`, segue para a integração.
 3. `integrate`: adapta backend e front-end para funcionarem juntos (CORS, servir o build, `environment.ts`, contrato da
    API, README) e roda as checagens do projeto (black, pytest, `ngc` + `ng build`).
 
@@ -23,8 +24,9 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 
 | Fase | Quem | O que faz |
 |---|---|---|
-| `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
-| `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`, cada tela em `src/app/screens/<id>/<id>.ts`; depois `README.md` |
+| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html` e injeta a config Tailwind do Stitch (tema, fontes, plugins) em `src/index.html` (`app/theme.py`) |
+| `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, design tokens e layout do Stitch, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
+| `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`; cada tela converte o HTML do Stitch em `src/app/screens/<id>/<id>.ts` (estrutura e classes preservadas, conteúdo vira signals e `@for`, estados loading/vazio/erro); depois `README.md` |
 | `verify_frontend` | pipeline | `ngc --noEmit` (strictTemplates) em `workspace/.angular_cache` |
 | `fix_phase` | orquestrador -> `angular_coder` | corrige só os arquivos citados pelo `ngc` |
 | `deliver` | pipeline | `ng build --configuration production` e cópia para `<projeto>/frontend` (ou `FRONTEND_DEST`) |
@@ -45,7 +47,7 @@ com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato da skill `jobappli
 | Pasta | Uso |
 |---|---|
 | `workspace/inputs/` | specs `.md` a processar (ou use `--ux-run` / `--latest-ux-run`) |
-| `workspace/current/` | run atual: `spec.md`, `screens.json`, `reference/` (protótipo anterior), `plan.md`, `architecture.md`, `run.json` |
+| `workspace/current/` | run atual: `spec.md`, `screens.json`, `stitch/` (HTML aprovado por tela), `reference/` (protótipo anterior, opcional), `plan.md`, `architecture.md`, `run.json` |
 | `workspace/outputs/frontend/` | projeto Angular gerado (limpo a cada run) |
 | `workspace/logs/` | `<run_id>.jsonl`: eventos, duração e tokens por fase, erros do `ngc` |
 | `workspace/metadata/` | `<run_id>.json`: entradas, status, arquivos gerados, uso, destino |
@@ -73,10 +75,13 @@ uv run python -m app.main describe --project $P --to-ux        # 1. brief para o
 #   -> suba o .md no "choose file" do ux-deep-agents e aprove as telas; ele gera o prototipo front-end
 uv run python -m app.main build --latest-ux-run --project $P   # 2. Angular em $P/frontend + 3. integracao
 uv run python -m app.main build --ux-run "~/UX Project/ux-deep-agents/workspace/runs/run_20261030_201036" --project $P
-uv run python -m app.main build spec.md --screens screens.json --reference prototipo/ --dest /outro/destino
+uv run python -m app.main build spec.md --screens screens.json --stitch stitch-html/ --dest /outro/destino
 uv run python -m app.main integrate --project $P               # so a integracao, sobre um front-end ja entregue
 uv run python -m app.main list | resume [RUN_ID]               # --force inicia nova run mesmo com uma pendente
 ```
+
+Um único gerador de Angular (D1): no `ux-deep-agents`, `FRONTEND_CODER=0` pula o `frontend_coder` e a checagem `ngc`;
+o Angular vem só daqui, fiel às telas que o designer aprovou no Stitch.
 
 Depois: `cd $P/frontend && npm install && npm start` (http://localhost:4200) com `uv run job-applier-web` no backend
 (porta 8501, CORS liberado para 4200). Para servir o build pelo FastAPI: `ng build --base-href /app/` e abra http://localhost:8501/app/.

@@ -11,6 +11,13 @@ src/index.html (Tailwind via CDN), src/styles.css (tem .sr-only), src/environmen
 (`apiBaseUrl`, `useMocks`) e src/app/app.config.ts (provideHttpClient, provideRouter com
 withComponentInputBinding e `...API_PROVIDERS` importado de ./core/api/providers).
 
+## Fonte visual: HTML do Stitch (/current/stitch/<id>.html)
+Cada tela aprovada pelo designer existe como HTML + Tailwind. Ele manda no visual: estrutura, classes, cores (nomes do tema
+como `bg-surface-container`, `text-on-surface`, `bg-primary`), fonte Inter e icones Material Symbols (`<span class="material-symbols-outlined">`).
+A config do tema ja esta em src/index.html; use os nomes das cores do tema, nao hexadecimais. Converta so o conteudo do
+<body> para o template; troque texto fixo por signals, listas repetidas por `@for` com dados de JobApplierApi, e acrescente
+os estados (loading/vazio/erro) que o HTML estatico nao mostra. Nunca copie <html>, <head> ou scripts.
+
 ## Layout de pastas (gere exatamente assim)
 - src/app/app.ts                       -> `App` (selector app-root): shell com header, nav (routerLink + routerLinkActive) e <router-outlet />
 - src/app/app.routes.ts                -> uma rota por tela com `loadComponent: () => import('./screens/<id>/<id>').then(m => m.<Pascal>Screen)`; '' redireciona para a primeira; '**' para uma tela not-found simples

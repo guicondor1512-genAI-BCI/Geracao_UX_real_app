@@ -21,7 +21,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["app/templates", "workspace"]
+extend-exclude = ["app/templates", "workspace", "docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

@@ -65,6 +65,7 @@ def test_build_with_project_runs_integration(project, tmp_path):
     )
     assert agent.phases == ["PLANO", "BUILD", "INTEGRATE"]
     assert result["integration_errors"] == []
+    assert json.loads((ws.ROOT / "metadata" / "run_b.json").read_text())["compiled"] is True
     assert (project / "frontend" / "src" / "app" / "app.ts").exists()
     events = [e["event"] for e in ws.read_events("run_b")]
     assert events.count("integration_check") == 3 and events[-1] == "finalize"
@@ -83,3 +84,12 @@ def test_integrate_only(project, monkeypatch):
     assert agent.phases == ["INTEGRATE", "INTEGRATE"]
     assert len(result["integration_errors"]) == 1 and result["integration_errors"][0].startswith("## tests")
     assert json.loads((ws.ROOT / "metadata" / "run_i.json").read_text())["compiled"] is False
+
+
+def test_compiled_uses_integration_result_when_project_given():
+    from app.graph import compiled
+
+    state = {"project_dir": "/p", "frontend_errors": ["erro antes da integracao"], "integration_errors": []}
+    assert compiled(state) is True
+    assert compiled({"frontend_errors": ["x"]}) is False
+    assert compiled({"project_dir": "/p", "integration_errors": ["## tests\nfalhou"]}) is False
