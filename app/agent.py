@@ -12,7 +12,7 @@ from app.project import backend
 from app.subagents import SUBAGENTS
 from app.tools.plan_tool import plan_tool
 from app.tools.project_check import project_check
-from app.workspace import checkpointer, ensure
+from app.workspace import checkpointer, ensure, validate_skills
 
 ORCHESTRATOR_PROMPT = """Você é o orquestrador de construção do front-end Angular 22 do Job Applier e da sua integração com o backend.
 Workspace: /current/spec.md (protótipo front-end do ux-deep-agents), /current/screens.json, /current/reference/ (protótipo anterior),
@@ -47,6 +47,7 @@ def _subagent(spec: dict) -> SubAgent:
 
 def build_agent(project_dir: Path | None = None):
     ensure()
+    validate_skills()
     return create_deep_agent(
         model=_model("orchestrator"),
         tools=[plan_tool],

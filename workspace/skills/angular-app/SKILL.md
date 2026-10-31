@@ -7,14 +7,15 @@ description: Como construir a aplicacao Angular 22 real do Job Applier (standalo
 ## Quando usar
 Ao gerar /outputs/frontend/ a partir de /current/spec.md, /current/screens.json e /current/architecture.md.
 O projeto base ja existe e NAO deve ser reescrito: package.json, angular.json, tsconfig*.json, src/main.ts,
-src/index.html (Tailwind via CDN), src/styles.css (tem .sr-only), src/environments/environment.ts
+src/index.html (fontes do Stitch), src/styles.css (Tailwind v4 + @theme do Stitch), .postcssrc.json, src/environments/environment.ts
 (`apiBaseUrl`, `useMocks`) e src/app/app.config.ts (provideHttpClient, provideRouter com
 withComponentInputBinding e `...API_PROVIDERS` importado de ./core/api/providers).
 
 ## Fonte visual: HTML do Stitch (/current/stitch/<id>.html)
 Cada tela aprovada pelo designer existe como HTML + Tailwind. Ele manda no visual: estrutura, classes, cores (nomes do tema
 como `bg-surface-container`, `text-on-surface`, `bg-primary`), fonte Inter e icones Material Symbols (`<span class="material-symbols-outlined">`).
-A config do tema ja esta em src/index.html; use os nomes das cores do tema, nao hexadecimais. Converta so o conteudo do
+O tema esta em src/styles.css como bloco @theme do Tailwind v4 (compilado no build, sem CDN); use os nomes das cores do tema
+(`bg-primary`, `text-on-surface`), nao hexadecimais. Rotas usam path routing (sem `#`). Converta so o conteudo do
 <body> para o template; troque texto fixo por signals, listas repetidas por `@for` com dados de JobApplierApi, e acrescente
 os estados (loading/vazio/erro) que o HTML estatico nao mostra. Nunca copie <html>, <head> ou scripts.
 
@@ -41,7 +42,7 @@ os estados (loading/vazio/erro) que o HTML estatico nao mostra. Nunca copie <htm
 - Upload: `<input type="file" accept="application/pdf" (change)="onFile($event)">` e `FormData` no servico.
 - Tipos estritos: sem `any`; `noPropertyAccessFromIndexSignature` (use `obj['chave']` em index signatures); `noImplicitReturns`.
 - Zoneless (sem zone.js): nunca dependa de deteccao automatica apos `setTimeout`; atualize signals.
-- Nada alem de @angular/*, rxjs e Tailwind (classes utilitarias). Sem bibliotecas externas.
+- Nada alem de @angular/*, rxjs e Tailwind v4 (classes utilitarias, compiladas no build). Sem bibliotecas externas.
 
 ## Acessibilidade (WCAG 2.1 AA)
 - Status sempre texto + icone, nunca so cor. Tokens: sucesso #1B7F3B, erro #B3261E, neutro #4B5563, aviso #92400E (>= 4.5:1 sobre branco).

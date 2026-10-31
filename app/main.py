@@ -90,7 +90,7 @@ def build_inputs(args: argparse.Namespace) -> dict:
 
 def guard_pending(force: bool) -> None:
     pending = ws.read_run_status()
-    if pending and pending["status"] != "done" and not force:
+    if pending and pending["status"] in ("running", "paused") and not force:
         sys.exit(f"Run {pending['run_id']} esta '{pending['status']}'. Use resume, list ou --force.")
 
 

@@ -17,8 +17,11 @@ O backend e a fonte de verdade do contrato: adapte o front-end a ele; mude o bac
    - CORS: `from fastapi.middleware.cors import CORSMiddleware` e `app.add_middleware(CORSMiddleware, allow_origins=FRONTEND_ORIGINS,
      allow_credentials=True, allow_methods=["*"], allow_headers=["*"])`, com `FRONTEND_ORIGINS` lido do ambiente
      (default `["http://localhost:4200"]`) em config.py. Registre ANTES de outros middlewares HTTP.
-   - Servir o build: se `frontend/dist/<nome>/browser/index.html` existir, `app.mount("/app", StaticFiles(directory=..., html=True), name="frontend")`
-     (o Angular usa `<base href="/">`: ao servir em /app, o build deve usar `ng build --base-href /app/`; registre isso no README).
+   - Servir o build com fallback de SPA (o Angular usa path routing, sem `#`): se `frontend/dist/<nome>/browser/index.html` existir,
+     registre `@app.get("/app/{path:path}", include_in_schema=False)` que devolve `FileResponse` do arquivo pedido quando ele existir
+     dentro de `browser/` (assets, js, css) e, caso contrario, do `index.html` (rotas profundas e refresh funcionam); `/app` sem barra
+     redireciona para `/app/`. Um `app.mount("/app", StaticFiles(html=True))` NAO basta: devolve 404 em `/app/search-setup`.
+     O build e `npm run build:app` (`ng build --configuration production --base-href /app/`); registre isso no README.
    - Nao altere rotas, modelos nem regras de negocio existentes. Nao quebre a pagina atual em `/`.
 4. Front-end:
    - environment.ts: `useMocks: false`, `apiBaseUrl` = origem do backend (http://localhost:8501). Mantenha os mocks para desenvolvimento.

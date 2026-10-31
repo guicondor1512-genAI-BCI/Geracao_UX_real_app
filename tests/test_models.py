@@ -18,6 +18,21 @@ def test_fallback_only_with_openrouter_key(monkeypatch):
     assert middleware.models[0].model_name == "openai/gpt-6-luna"
 
 
+def test_validate_skills(tmp_path, monkeypatch):
+    from app import workspace as ws
+
+    assert set(ws.validate_skills()) >= {"angular-app", "api-contract", "integration", "ux-brief"}
+    bad = ws.ROOT / "skills" / "broken"
+    bad.mkdir()
+    (bad / "SKILL.md").write_text("---\nname: broken\ndescription: a: b: c\n---\n")
+    try:
+        ws.validate_skills()
+    except ValueError as e:
+        assert "broken" in str(e)
+    else:
+        raise AssertionError("skill invalida deveria falhar")
+
+
 def test_override(monkeypatch):
     monkeypatch.setenv("MODEL_INTEGRATOR", "openai:gpt-6-sol")
     assert model_name("integrator") == "openai:gpt-6-sol"

@@ -22,6 +22,7 @@ TEMPLATE_FILES = (
     "src/main.ts",
     "src/index.html",
     "src/styles.css",
+    ".postcssrc.json",
     "src/environments/environment.ts",
     "src/app/app.config.ts",
 )
@@ -50,8 +51,11 @@ def cache_dir() -> Path:
 def ensure_cache() -> Path:
     """Template sempre sincronizado; node_modules instalado so na primeira vez."""
     cache = cache_dir()
+    stale = (cache / "package.json").exists() and (cache / "package.json").read_bytes() != (
+        TEMPLATE / "package.json"
+    ).read_bytes()
     shutil.copytree(TEMPLATE, cache, dirs_exist_ok=True)
-    if not (cache / "node_modules").exists():
+    if stale or not (cache / "node_modules").exists():
         subprocess.run(
             ["npm", "install", "--no-audit", "--no-fund", "--loglevel=error"],
             cwd=cache,
