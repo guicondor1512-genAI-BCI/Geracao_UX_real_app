@@ -249,6 +249,34 @@ def story():
             "(docker compose run --rm builder build --latest-ux-run --project /target). POST /ask responde de forma sincrona, com "
             "um deep agent so de leitura, perguntas sobre as runs (metadata, logs, snapshots) e o projeto alvo."
         ),
+        p("3.6 Como rodar", H2),
+        table(
+            [
+                ["Caminho", "Como", "Quando usar"],
+                [
+                    "Terminal (CLI)",
+                    "uv sync; .env com OPENAI_API_KEY; uv run python -m app.main describe | build | integrate | ask | list | resume, com --project DIR. Mostra fases, subagents e checagens no console.",
+                    "Desenvolvimento e operacao manual; acompanhar uma run de perto.",
+                ],
+                [
+                    "Web (API HTTP)",
+                    "uv run python -m app.main serve --port 8010 (Swagger em /docs). POST /runs inicia uma run em background; GET /runs, /runs/{id}, /runs/{id}/events consultam; POST /ask responde perguntas; GET /health.",
+                    "Integrar a outro sistema (UI, Slack, agendador) ou disparar runs de fora da maquina.",
+                ],
+                [
+                    "Docker",
+                    "docker compose build (ou pull do GHCR) e docker compose up -d para a API em :8010; docker compose run --rm builder <comando> para o CLI. Volumes: ./workspace, projeto alvo em /target, workspace do UX em /ux.",
+                    "Rodar igual em qualquer maquina ou servidor, sem instalar Python, uv, Node ou Angular.",
+                ],
+            ],
+            [2.6 * cm, 9.6 * cm, 5.0 * cm],
+        ),
+        p(
+            "Nos tres caminhos o fluxo e o mesmo: describe gera o brief, o designer sobe o .md no ux-deep-agents e aprova as telas no "
+            "Stitch, build gera o Angular daquela run em <projeto>/frontend e, com --project, integra ao backend. Depois: "
+            "npm install && npm start em frontend/ com o backend na porta 8501 (CORS liberado), ou ng build --base-href /app/ "
+            "para o FastAPI servir o build em /app."
+        ),
         p("4. Resultados medidos (30/10/2026, projeto Job Applier)", H1),
         table(
             [

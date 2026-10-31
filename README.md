@@ -65,69 +65,101 @@ run; o checkpointer SQLite (`thread_id = run_id`) permite `resume`. No `finalize
 `outputs/` e o log em `runs/<run_id>/`, grava `metadata/<run_id>.json` e arquiva a spec em `archive/`. Um run pendente
 (`current/run.json` com status diferente de `done`) bloqueia novas runs sem `--force`.
 
-## Rodar
+## Como rodar
+
+Três caminhos, todos com os mesmos comandos (`describe`, `build`, `integrate`, `ask`, `list`, `resume`):
+o **terminal** (CLI, ideal para acompanhar as fases no console), a **web** (API HTTP, para disparar runs e consultar
+status de outro sistema) e o **Docker** (imagem com tudo instalado, para rodar igual em qualquer máquina ou servidor).
+
+### Pré-requisitos
 
 ```bash
-uv sync
-cp .env.example .env                      # OPENAI_API_KEY (LangSmith opcional)
-P=~/Codes/deepagents_jobapplier
-uv run python -m app.main describe --project $P --to-ux        # 1. brief para o designer (+ copia para o ux-deep-agents)
-#   -> suba o .md no "choose file" do ux-deep-agents e aprove as telas; ele gera o prototipo front-end
-uv run python -m app.main build --latest-ux-run --project $P   # 2. Angular em $P/frontend + 3. integracao
-uv run python -m app.main build --ux-run "~/UX Project/ux-deep-agents/workspace/runs/run_20261030_201036" --project $P
-uv run python -m app.main build spec.md --screens screens.json --stitch stitch-html/ --dest /outro/destino
-uv run python -m app.main integrate --project $P               # so a integracao, sobre um front-end ja entregue
-uv run python -m app.main ask "Quais telas a ultima run gerou?" --project $P   # Q&A so leitura sobre runs e projeto
-uv run python -m app.main list | resume [RUN_ID]               # --force inicia nova run mesmo com uma pendente
+uv sync                                   # Python 3.12 e dependências travadas (uv.lock)
+cp .env.example .env                      # OPENAI_API_KEY obrigatória; LangSmith opcional
+node -v                                   # Node 22+ e npm, usados pelo ngc e ng build (não precisa no Docker)
+P=~/Codes/deepagents_jobapplier           # projeto alvo (backend FastAPI); o Angular vai para $P/frontend
 ```
 
-Um único gerador de Angular (D1): no `ux-deep-agents`, `FRONTEND_CODER=0` pula o `frontend_coder` e a checagem `ngc`;
-o Angular vem só daqui, fiel às telas que o designer aprovou no Stitch.
+O fluxo completo é: `describe` gera o brief -> você sobe o `.md` no "choose file" do `ux-deep-agents` e aprova as telas no
+Stitch -> `build` gera o Angular a partir dessa run e, com `--project`, já integra ao backend.
 
-Depois: `cd $P/frontend && npm install && npm start` (http://localhost:4200) com `uv run job-applier-web` no backend
-(porta 8501, CORS liberado para 4200). Para servir o build pelo FastAPI: `ng build --base-href /app/` e abra http://localhost:8501/app/.
+### 1. Terminal (CLI)
 
-Variáveis: `OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`,
-`FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`, `PROJECT_FORMAT_CMD`, `BUILDER_WORKSPACE`, `ANGULAR_CACHE`, bloco LangSmith.
+```bash
+uv run python -m app.main describe --project $P --to-ux        # brief para o designer (+ cópia nos inputs do ux-deep-agents)
+uv run python -m app.main build --latest-ux-run --project $P   # Angular em $P/frontend + integração com o backend
+uv run python -m app.main build --ux-run "~/UX Project/ux-deep-agents/workspace/runs/run_20261030_205257" --project $P
+uv run python -m app.main build spec.md --screens screens.json --stitch stitch-html/ --dest /outro/destino
+uv run python -m app.main integrate --project $P               # só a integração, sobre um front-end já entregue
+uv run python -m app.main ask "Quais telas a última run gerou?" --project $P   # pergunta ao agente (só leitura)
+uv run python -m app.main list                                 # runs e status
+uv run python -m app.main resume [RUN_ID]                      # retoma uma run interrompida
+```
 
-## Docker
+O terminal mostra cada fase e cada subagent (`-> architect iniciou`, `<- angular_coder terminou (120s)`), as checagens
+(`ngc`, `ng build`, `black`, `pytest`) e, no fim, duração, tokens, destino e o `git status` do projeto. Uma run por vez:
+com uma run pendente em `workspace/current/run.json`, use `resume`, `list` ou `--force`.
+
+### 2. Web (API HTTP)
+
+```bash
+uv run python -m app.main serve --port 8010   # Swagger em http://localhost:8010/docs (a 8000 costuma estar com o ux-deep-agents)
+```
+
+Os mesmos comandos viram requisições; as runs rodam em background, uma por vez (409 se houver pendente sem `force`):
+
+```bash
+curl -X POST localhost:8010/runs -H 'content-type: application/json' \
+  -d '{"mode": "describe", "project": "'$P'", "to_ux": true}'
+curl -X POST localhost:8010/runs -H 'content-type: application/json' \
+  -d '{"mode": "build", "project": "'$P'"}'        # ux_run opcional; sem ele, a run mais recente do UX
+curl localhost:8010/runs                           # lista com status e uso
+curl localhost:8010/runs/<run_id>                  # metadata, notas de progresso, erro
+curl localhost:8010/runs/<run_id>/events           # log jsonl da run
+curl -X POST localhost:8010/ask -H 'content-type: application/json' \
+  -d '{"question": "A última run compilou? Quanto custou?", "project": "'$P'"}'   # {"response": "..."}
+```
+
+`POST /ask` responde de forma síncrona com o deep agent em modo só leitura sobre `metadata/`, `logs/`, `current/`,
+`outputs/`, `runs/`, `skills/` e o projeto; erros do agente voltam como 500 com o detalhe. `GET /health` para monitoração.
+
+### 3. Docker
 
 A imagem traz Python 3.12, `uv`, Node 22 e o cache Angular (template + `node_modules`) pré-instalado em `/opt/angular_cache`,
 então `ngc` e `ng build` funcionam sem rede em cada run. O workspace, o projeto alvo e o workspace do `ux-deep-agents` entram
 como volumes (`compose.yaml`): `./workspace` em `/app/workspace`, o projeto em `/target` e o workspace do UX em `/ux`
-(`TARGET_PROJECT` e `UX_WORKSPACE` sobrescrevem os caminhos).
+(`TARGET_PROJECT` e `UX_WORKSPACE` sobrescrevem os caminhos; `BUILDER_PORT` a porta do host, default 8010).
 
 ```bash
-docker compose build
-docker compose up -d                        # API em http://localhost:8010 (Swagger em /docs); BUILDER_PORT muda a porta
-docker compose run --rm builder describe --project /target --to-ux
+docker compose build                                   # ou docker pull ghcr.io/guicondor1512-genai-bci/frontend-builder:latest
+docker compose up -d                                   # web: API em http://localhost:8010 (Swagger em /docs)
+docker compose run --rm builder describe --project /target --to-ux      # terminal dentro do container
 docker compose run --rm builder build --latest-ux-run --project /target
 docker compose run --rm builder integrate --project /target
+docker compose run --rm builder ask "Quais telas existem?" --project /target
 docker compose run --rm builder list
+docker compose logs -f builder                         # acompanhar a API
 ```
 
-A API (`serve`, `app/api.py`) roda os mesmos comandos em background, uma run por vez. No host ela sai na 8010 porque a
-interface web do `ux-deep-agents` usa a 8000; dentro do container a porta é 8000:
-
-```bash
-curl -X POST localhost:8010/runs -H 'content-type: application/json' \
-  -d '{"mode": "build", "project": "/target"}'          # ux_run opcional; sem ele, a run mais recente do UX
-curl localhost:8010/runs                                # lista com status e uso
-curl localhost:8010/runs/<run_id>                       # metadata, notas de progresso, erro
-curl localhost:8010/runs/<run_id>/events                # log jsonl da run
-curl -X POST localhost:8010/ask -H 'content-type: application/json' \
-  -d '{"question": "A ultima run compilou? Quanto custou?", "project": "/target"}'   # {"response": "..."}
-```
-
-`POST /ask` (e `python -m app.main ask "pergunta" [--project DIR]`) responde de forma síncrona com o deep agent em modo só
-leitura sobre `metadata/`, `logs/`, `current/`, `outputs/`, `runs/`, `skills/` e, se informado, o projeto em `/project/`;
-erros do agente voltam como 500 com o detalhe.
-
-Sem compose: `docker build -t frontend-builder .`, `docker run --rm -p 8010:8000 --env-file .env -v ... frontend-builder` (API) ou `docker run --rm --env-file .env -v ./workspace:/app/workspace -v <projeto>:/target -v "<ux>/workspace":/ux frontend-builder build --latest-ux-run --project /target`.
+Sem compose: `docker build -t frontend-builder .` e `docker run --rm -p 8010:8000 --env-file .env -v ./workspace:/app/workspace -v $P:/target -v "$HOME/UX Project/ux-deep-agents/workspace":/ux frontend-builder` (API); qualquer subcomando
+do CLI no fim do comando roda em vez da API.
 
 Na integração, os testes do projeto alvo rodam dentro do container com `UV_PROJECT_ENVIRONMENT=/tmp/target-venv`
 (`PROJECT_TEST_CMD` na imagem), para não tocar no `.venv` do host montado em `/target`. `ANGULAR_CACHE` aponta o cache
 Angular para fora do volume do workspace.
+
+### Depois de uma run
+
+`cd $P/frontend && npm install && npm start` (http://localhost:4200) com `uv run job-applier-web` no backend (porta 8501,
+CORS liberado para 4200). Para servir o build pelo FastAPI: `ng build --base-href /app/` e abra http://localhost:8501/app/.
+Um único gerador de Angular (D1): no `ux-deep-agents`, `FRONTEND_CODER=0` pula o `frontend_coder`; o Angular vem só daqui,
+fiel às telas aprovadas no Stitch.
+
+### Variáveis
+
+`OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_BACKEND_ANALYST`, `MODEL_INTEGRATOR`, `MODEL_ASK`,
+`MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
+`PROJECT_FORMAT_CMD`, `BUILDER_WORKSPACE`, `ANGULAR_CACHE`, bloco LangSmith.
 
 ### Versionar e publicar a imagem
 
