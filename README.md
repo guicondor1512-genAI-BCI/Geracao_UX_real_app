@@ -54,6 +54,15 @@ com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato da skill `jobappli
 | `workspace/archive/` | cópia da spec processada |
 | `workspace/.angular_cache/` | template + `node_modules` para `ngc`/`ng build` |
 
+## Versionamento de runs
+
+![Versionamento de runs](docs/versionamento_runs.jpeg)
+
+Cada execução recebe um `run_id` (`run_YYYYMMDD_HHMMSS`). O estado mutável fica em `current/` e `outputs/`, limpos a cada
+run; o checkpointer SQLite (`thread_id = run_id`) permite `resume`. No `finalize`, `snapshot_run()` congela `current/`,
+`outputs/` e o log em `runs/<run_id>/`, grava `metadata/<run_id>.json` e arquiva a spec em `archive/`. Um run pendente
+(`current/run.json` com status diferente de `done`) bloqueia novas runs sem `--force`.
+
 ## Rodar
 
 ```bash

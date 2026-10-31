@@ -13,7 +13,6 @@ workspace/archive/*
 workspace/inputs/*
 !workspace/*/.gitkeep
 workspace/checkpoints.sqlite*
-docs/
 node_modules/
 package.json
 package-lock.json
