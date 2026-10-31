@@ -11,7 +11,16 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    CondPageBreak,
+    Image,
+    KeepTogether,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "relatorio_frontend_builder.pdf"
 FIG_RUNS = Path(__file__).parent / "versionamento_runs.jpeg"
@@ -31,6 +40,8 @@ SUB = ParagraphStyle("sub", parent=BODY, fontSize=10.5, textColor=colors.HexColo
 
 
 def p(text, style=BODY):
+    if style in (H1, H2):  # titulo nunca fica sozinho no fim da pagina; a tabela seguinte pode dividir
+        return KeepTogether([CondPageBreak(5 * cm), Paragraph(text, style)])
     return Paragraph(text, style)
 
 
@@ -71,13 +82,29 @@ def flow():
     for i, (title, sub) in enumerate(steps):
         x = i * (w + gap)
         d.add(Rect(x, y, w, h, fillColor=colors.HexColor("#EFF6FF"), strokeColor=ACCENT, strokeWidth=1))
-        d.add(String(x + w / 2, y + h - 16, title.split("\n")[0], textAnchor="middle", fontSize=9, fillColor=ACCENT, fontName="Helvetica-Bold"))
+        d.add(
+            String(
+                x + w / 2,
+                y + h - 16,
+                title.split("\n")[0],
+                textAnchor="middle",
+                fontSize=9,
+                fillColor=ACCENT,
+                fontName="Helvetica-Bold",
+            )
+        )
         for j, line in enumerate(sub.split("\n")):
             d.add(String(x + w / 2, y + h - 30 - j * 10, line, textAnchor="middle", fontSize=7.5, fillColor=INK))
         if i < len(steps) - 1:
             ax = x + w
             d.add(Line(ax, y + h / 2, ax + gap - 5, y + h / 2, strokeColor=INK))
-            d.add(Polygon([ax + gap - 5, y + h / 2 - 3, ax + gap, y + h / 2, ax + gap - 5, y + h / 2 + 3], fillColor=INK, strokeColor=INK))
+            d.add(
+                Polygon(
+                    [ax + gap - 5, y + h / 2 - 3, ax + gap, y + h / 2, ax + gap - 5, y + h / 2 + 3],
+                    fillColor=INK,
+                    strokeColor=INK,
+                )
+            )
     return d
 
 
@@ -92,7 +119,10 @@ def figure(path, width):
 def story():
     s = [
         p("frontend-builder", TITLE),
-        p("Deep Agent que transforma um backend existente em uma aplicacao Angular integrada, passando por um designer", SUB),
+        p(
+            "Deep Agent que transforma um backend existente em uma aplicacao Angular integrada, passando por um designer",
+            SUB,
+        ),
         p(f"Relatorio tecnico e de negocio - {date.today():%d/%m/%Y}", SUB),
         Spacer(1, 10),
         p("1. Resumo executivo", H1),
@@ -102,20 +132,24 @@ def story():
             "o brief alimenta o microservico ux-deep-agents, onde o designer aprova as telas; o prototipo aprovado vira uma "
             "aplicacao Angular 22 real, gravada dentro do projeto do backend e adaptada para funcionar com ele. "
             "Na primeira execucao completa sobre o Job Applier, o ciclo inteiro custou cerca de US$ 1 em tokens "
-            "(gpt-6-luna) e 16 minutos de processamento, com o Angular compilando na primeira tentativa e os 146 testes do backend verdes."
+            "(gpt-6-luna) e 16 minutos de processamento, com o Angular compilando na primeira tentativa e os 146 testes do backend verdes. "
+            "Desde 31/10/2026 as telas aprovadas no Stitch sao a fonte visual do Angular: tema, layout e icones chegam ao app real."
         ),
         p("2. O que o projeto faz", H1),
         flow(),
         Spacer(1, 6),
-        p("Tres comandos, todos sobre um projeto alvo (<i>--project DIR</i>), que os agentes enxergam como <i>/project/</i>:"),
+        p(
+            "Tres comandos, todos sobre um projeto alvo (<i>--project DIR</i>), que os agentes enxergam como <i>/project/</i>:"
+        ),
         *bullets(
             [
                 "<b>describe</b>: o subagent <i>backend_analyst</i> le README, configuracao, rotas, modelos, estados e prompts do backend e "
                 "escreve <i>outputs/brief/&lt;projeto&gt;-descricao.md</i> com 10 secoes fixas (o que e, personas, fluxos, entidades e estados, "
                 "privacidade, telas atuais, direcoes futuras, tom, contrato da API). Com <i>--to-ux</i>, copia para os inputs do ux-deep-agents.",
-                "<b>build</b>: a partir de uma run do ux-deep-agents (screens.md, screens.json e o prototipo de referencia), o <i>architect</i> define "
-                "arquitetura, modelos, servicos de API (HTTP e mock) e componentes compartilhados; varios <i>angular_coder</i> implementam lotes de "
-                "telas em paralelo; o pipeline compila com <i>ngc --noEmit</i> (strictTemplates) e <i>ng build</i>, com ate 3 rodadas de correcao.",
+                "<b>build</b>: a partir de uma run do ux-deep-agents (screens.md, screens.json e os HTML das telas aprovadas no Stitch, que sao a "
+                "fonte visual: o tema Tailwind do Stitch vai para o index.html e cada tela e convertida a partir do seu HTML), o <i>architect</i> define "
+                "arquitetura, design tokens, modelos, servicos de API (HTTP e mock) e componentes compartilhados; varios <i>angular_coder</i> implementam "
+                "lotes de telas em paralelo; o pipeline compila com <i>ngc --noEmit</i> (strictTemplates) e <i>ng build</i>, com ate 5 rodadas de correcao.",
                 "<b>integrate</b>: o <i>integrator</i> adiciona CORS e o mount de <i>/app</i> no FastAPI, desliga os mocks, confere o contrato do front-end "
                 "contra as rotas reais, documenta e roda <i>black</i>, <i>pytest</i> e o build do Angular ate os tres passarem.",
             ]
@@ -125,11 +159,31 @@ def story():
         table(
             [
                 ["Agente", "Papel", "Le", "Escreve"],
-                ["orquestrador", "Recebe uma fase por vez do LangGraph; delega com task(); nunca implementa", "spec, architecture.md", "plan.md, README do front"],
+                [
+                    "orquestrador",
+                    "Recebe uma fase por vez do LangGraph; delega com task(); nunca implementa",
+                    "spec, architecture.md",
+                    "plan.md, README do front",
+                ],
                 ["backend_analyst", "Analista de produto que le codigo", "/project/**", "outputs/brief/*.md"],
-                ["architect", "Arquitetura Angular, nucleo do app e contrato da API", "spec, screens.json, referencia", "architecture.md, app.ts, routes, core/**, shared/**"],
-                ["angular_coder (N)", "Um lote de 3-4 telas por instancia, em paralelo; corrige erros do ngc", "architecture.md, spec, core, shared", "screens/&lt;id&gt;/&lt;id&gt;.ts"],
-                ["integrator", "Integracao back + front com a tool project_check", "/project/**, frontend/**", "main.py, config.py, environment.ts, READMEs"],
+                [
+                    "architect",
+                    "Arquitetura Angular, nucleo do app e contrato da API",
+                    "spec, screens.json, referencia",
+                    "architecture.md, app.ts, routes, core/**, shared/**",
+                ],
+                [
+                    "angular_coder (N)",
+                    "Um lote de 3-4 telas por instancia, em paralelo; converte o HTML do Stitch em componente; corrige erros do ngc",
+                    "architecture.md, spec, stitch/&lt;id&gt;.html, core, shared",
+                    "screens/&lt;id&gt;/&lt;id&gt;.ts",
+                ],
+                [
+                    "integrator",
+                    "Integracao back + front com a tool project_check",
+                    "/project/**, frontend/**",
+                    "main.py, config.py, environment.ts, READMEs",
+                ],
             ],
             [3 * cm, 6 * cm, 4 * cm, 4.2 * cm],
         ),
@@ -141,28 +195,35 @@ def story():
             "quantas mensagens dispararam subagents em paralelo. Falhas viram evento <i>failed</i> e status em <i>current/run.json</i>; "
             "o checkpointer SQLite permite <i>resume</i>."
         ),
+        Spacer(1, 6),
+        KeepTogether(
+            [
+                figure(FIG_RUNS, 14.5 * cm),
+                p(
+                    "<b>Figura 1.</b> Versionamento de runs: cada execucao recebe um run_id; current/ e outputs/ sao o estado "
+                    "mutavel, limpos a cada run; o checkpointer SQLite permite resume; no finalize o snapshot vai para "
+                    "runs/&lt;run_id&gt;/ junto com metadata, log e a spec arquivada.",
+                    CELL,
+                ),
+            ]
+        ),
         p("3.3 Workspace e isolamento de contexto", H2),
         table(
             [
                 ["Pasta", "Uso"],
                 ["inputs/", "specs e briefs a processar"],
-                ["current/", "run atual: spec.md, screens.json, reference/, plan.md, architecture.md, run.json"],
+                ["current/", "run atual: spec.md, screens.json, stitch/ (HTML aprovado por tela), reference/, plan.md, architecture.md, run.json"],
                 ["outputs/", "frontend/ gerado ou brief/ (limpo a cada run)"],
                 ["logs/", "&lt;run_id&gt;.jsonl com eventos, tokens, erros do compilador e das checagens"],
-                ["metadata/", "&lt;run_id&gt;.json: entradas, modo, status, arquivos gerados, uso, git status do projeto"],
+                [
+                    "metadata/",
+                    "&lt;run_id&gt;.json: entradas, modo, status, arquivos gerados, uso, git status do projeto",
+                ],
                 ["skills/", "angular-app, jobapplier-api, ux-brief, integration (progressive disclosure via SKILL.md)"],
                 ["runs/ e archive/", "snapshot imutavel de cada run e copia da spec processada"],
                 [".angular_cache/", "template Angular + node_modules para ngc e ng build"],
             ],
             [3.5 * cm, 13.7 * cm],
-        ),
-        Spacer(1, 6),
-        figure(FIG_RUNS, 17.2 * cm),
-        p(
-            "<b>Figura 1.</b> Versionamento de runs: cada execucao recebe um run_id; current/ e outputs/ sao o estado mutavel, "
-            "limpos a cada run; o checkpointer SQLite permite resume; no finalize o snapshot vai para runs/&lt;run_id&gt;/ junto com "
-            "metadata, log e a spec arquivada.",
-            CELL,
         ),
         Spacer(1, 6),
         p(
@@ -180,9 +241,34 @@ def story():
         table(
             [
                 ["Run", "Resultado", "Duracao", "Tokens", "Custo aprox."],
-                ["build (run UX run_20261030_201036)", "11 telas, 30 arquivos; ngc e ng build ok na 1a tentativa", "725 s", "8,30 M", "US$ 0,88"],
-                ["integrate", "CORS, /app, environment, contrato (achou o campo consent faltante em /voices); 146 testes ok", "114 s", "0,98 M", "US$ 0,10"],
-                ["describe", "brief de 92 linhas, 10 secoes, copiado para o ux-deep-agents", "103 s", "0,95 M", "US$ 0,10"],
+                [
+                    "build (run UX run_20261030_201036)",
+                    "11 telas, 30 arquivos; ngc e ng build ok na 1a tentativa",
+                    "725 s",
+                    "8,30 M",
+                    "US$ 0,88",
+                ],
+                [
+                    "integrate",
+                    "CORS, /app, environment, contrato (achou o campo consent faltante em /voices); 146 testes ok",
+                    "114 s",
+                    "0,98 M",
+                    "US$ 0,10",
+                ],
+                [
+                    "describe",
+                    "brief de 92 linhas, 10 secoes, copiado para o ux-deep-agents",
+                    "103 s",
+                    "0,95 M",
+                    "US$ 0,10",
+                ],
+                [
+                    "build + integrate com Stitch (31/10, run UX run_20261030_205257)",
+                    "13 telas fieis ao tema do Stitch; 3 rodadas de ngc (12 -> 1 -> 6 -> 2 erros), ultimo erro corrigido na integracao; 146 testes e ng build ok",
+                    "887 s",
+                    "9,34 M",
+                    "US$ 0,99",
+                ],
             ],
             [4.2 * cm, 7 * cm, 1.7 * cm, 1.8 * cm, 2.3 * cm],
         ),
@@ -191,7 +277,6 @@ def story():
             "2,26 M tokens e 17 minutos. O ciclo completo, do codigo do backend ao Angular integrado, fica em torno de "
             "12,5 M tokens, US$ 1,3 e 35 minutos de maquina, mais o tempo do designer na revisao."
         ),
-        PageBreak(),
         p("5. Visao estrategica de negocio", H1),
         p("5.1 Problema", H2),
         p(
@@ -218,10 +303,30 @@ def story():
         table(
             [
                 ["Segmento", "Dor", "Oferta", "Modelo"],
-                ["Times de produto com backend forte e front fraco", "Features ficam presas no Swagger", "Ferramenta interna: brief + Angular + integracao a partir do repo", "Licenca por repositorio ou por assento"],
-                ["Agencias e consultorias de UX", "Levantamento de requisitos e handoff manuais", "describe como servico: brief + telas em horas", "Por projeto; upsell do Angular"],
-                ["Fornecedores de plataformas internas", "Dezenas de servicos sem UI de operacao", "Pipeline continuo: a cada mudanca de API, UI atualizada e verificada", "SaaS por servico monitorado"],
-                ["Equipes que migram front-end legado", "Reescrita cara e arriscada", "Brief do sistema atual + Angular novo com contrato preservado", "Projeto fechado"],
+                [
+                    "Times de produto com backend forte e front fraco",
+                    "Features ficam presas no Swagger",
+                    "Ferramenta interna: brief + Angular + integracao a partir do repo",
+                    "Licenca por repositorio ou por assento",
+                ],
+                [
+                    "Agencias e consultorias de UX",
+                    "Levantamento de requisitos e handoff manuais",
+                    "describe como servico: brief + telas em horas",
+                    "Por projeto; upsell do Angular",
+                ],
+                [
+                    "Fornecedores de plataformas internas",
+                    "Dezenas de servicos sem UI de operacao",
+                    "Pipeline continuo: a cada mudanca de API, UI atualizada e verificada",
+                    "SaaS por servico monitorado",
+                ],
+                [
+                    "Equipes que migram front-end legado",
+                    "Reescrita cara e arriscada",
+                    "Brief do sistema atual + Angular novo com contrato preservado",
+                    "Projeto fechado",
+                ],
             ],
             [4 * cm, 4 * cm, 5.5 * cm, 3.7 * cm],
         ),
@@ -246,39 +351,139 @@ def story():
         table(
             [
                 ["#", "Debito", "Impacto", "Severidade"],
-                ["D1", "Dois geradores de Angular (frontend_coder no ux-deep-agents e o builder); o builder usa o prototipo so como referencia e nao herda o layout aprovado no Stitch", "Retrabalho e perda do que o designer aprovou", "Alta"],
-                ["D2", "Contrato da API copiado a mao na skill jobapplier-api; ja errou uma vez (consent em /voices), pego pelo integrator", "Bugs de contrato silenciosos em cada mudanca do backend", "Alta"],
-                ["D3", "Ciclo longo (~35 min) e revisao humana so nas telas do Stitch; o architecture.md nao e revisado antes do build", "Correcoes tardias custam uma run inteira", "Media"],
-                ["D4", "Hash routing e Tailwind via CDN herdados do prototipo no app real; sem fallback de index.html em /app", "Escolhas de prototipo em producao", "Media"],
-                ["D5", "Comandos de verificacao (pytest, black, uv) fixos por env; o describe nao detecta as convencoes do projeto", "So funciona bem em projetos com o stack do Job Applier", "Media"],
-                ["D6", "Nenhum teste ponta a ponta com o backend real (precisa de Postgres); a integracao e verificada por compilacao e testes unitarios", "Erros de runtime (SSE, auth, multipart) so aparecem em uso", "Media"],
-                ["D7", "Consumo de contexto alto: 1,1 M tokens na fase de plano e 7,2 M no build (spec e referencia relidas por cada subagent)", "Custo cresce com o tamanho da spec; limite de contexto em apps maiores", "Media"],
-                ["D8", "Frontmatter de skill invalido e ignorado silenciosamente pelo deepagents (aconteceu com integration); nao ha validacao no startup", "Skill ausente sem erro visivel", "Baixa"],
-                ["D9", "Apos falha, current/run.json fica como running e exige --force; resume existe mas nao foi exercitado em run real", "Atrito operacional", "Baixa"],
-                ["D10", "README do front-end gerado trouxe caminho virtual (/outputs/frontend) ate o integrator corrigir; textos as vezes sem acentos", "Acabamento", "Baixa"],
+                [
+                    "D1",
+                    "RESOLVIDO em 31/10/2026: o builder consome os HTML das telas do Stitch (tema no index.html, layout por tela) e FRONTEND_CODER=0 desliga o frontend_coder do ux-deep-agents (um gerador so)",
+                    "Validado: 13 telas com os tokens do tema; erros do ngc convergem em 3-4 rodadas",
+                    "Fechado",
+                ],
+                [
+                    "D2",
+                    "Contrato da API copiado a mao na skill jobapplier-api; ja errou uma vez (consent em /voices), pego pelo integrator",
+                    "Bugs de contrato silenciosos em cada mudanca do backend",
+                    "Alta",
+                ],
+                [
+                    "D3",
+                    "Ciclo longo (~35 min) e revisao humana so nas telas do Stitch; o architecture.md nao e revisado antes do build",
+                    "Correcoes tardias custam uma run inteira",
+                    "Media",
+                ],
+                [
+                    "D4",
+                    "Hash routing e Tailwind via CDN (agora com o tema do Stitch) no app real; sem fallback de index.html em /app",
+                    "Escolhas de prototipo em producao",
+                    "Media",
+                ],
+                [
+                    "D11",
+                    "Correcoes do ngc em paralelo as vezes introduzem erros novos em outros arquivos (aspas em templates, ICU); so a rodada seguinte os pega",
+                    "Mais rodadas; o limite subiu para 5",
+                    "Baixa",
+                ],
+                [
+                    "D5",
+                    "Comandos de verificacao (pytest, black, uv) fixos por env; o describe nao detecta as convencoes do projeto",
+                    "So funciona bem em projetos com o stack do Job Applier",
+                    "Media",
+                ],
+                [
+                    "D6",
+                    "Nenhum teste ponta a ponta com o backend real (precisa de Postgres); a integracao e verificada por compilacao e testes unitarios",
+                    "Erros de runtime (SSE, auth, multipart) so aparecem em uso",
+                    "Media",
+                ],
+                [
+                    "D7",
+                    "Consumo de contexto alto: 1,1 M tokens na fase de plano e 7,2 M no build (spec e referencia relidas por cada subagent)",
+                    "Custo cresce com o tamanho da spec; limite de contexto em apps maiores",
+                    "Media",
+                ],
+                [
+                    "D8",
+                    "Frontmatter de skill invalido e ignorado silenciosamente pelo deepagents (aconteceu com integration); nao ha validacao no startup",
+                    "Skill ausente sem erro visivel",
+                    "Baixa",
+                ],
+                [
+                    "D9",
+                    "Apos falha, current/run.json fica como running e exige --force; resume existe mas nao foi exercitado em run real",
+                    "Atrito operacional",
+                    "Baixa",
+                ],
+                [
+                    "D10",
+                    "README do front-end gerado trouxe caminho virtual (/outputs/frontend) ate o integrator corrigir; textos as vezes sem acentos",
+                    "Acabamento",
+                    "Baixa",
+                ],
             ],
             [0.9 * cm, 8.3 * cm, 5.3 * cm, 1.9 * cm],
         ),
         p("7. Proximos passos", H1),
+        p(
+            "Com D1 fechado, os passos 1 e 3 completam a virada de pipeline de demonstracao para ferramenta de equipe: contrato "
+            "sempre correto e revisao humana barata antes do codigo, sobre um unico gerador fiel ao design aprovado."
+        ),
         table(
             [
                 ["Prioridade", "Passo", "Resolve", "Esforco"],
-                ["1", "Gerar models.ts e o cliente HTTP a partir do /openapi.json do FastAPI (no describe e no integrate), eliminando a tabela manual da skill", "D2", "1-2 dias"],
-                ["2", "Fazer o builder consumir os HTML das telas do Stitch como fonte visual e tirar o frontend_coder do ux-deep-agents (um gerador so)", "D1", "2-3 dias"],
-                ["3", "Ponto de revisao humana no architecture.md (lista de telas, rotas, componentes) antes do build, via interrupt() como no ux-deep-agents", "D3", "1 dia"],
-                ["4", "Teste ponta a ponta: subir Postgres e backend em container, rodar o Angular com Playwright contra /ask, /review e SSE", "D6", "2 dias"],
-                ["5", "Detectar convencoes do projeto no describe (gerenciador, testes, formatador, porta) e gravar em metadata para o integrate", "D5", "1 dia"],
-                ["6", "Reduzir contexto: resumo por tela em vez da spec inteira para cada angular_coder; cache de prompt onde o provedor permitir", "D7", "1-2 dias"],
-                ["7", "Tailwind no build, fallback de index.html em /app, path routing; validar skills no startup; limpar run.json apos falha", "D4, D8, D9", "1 dia"],
-                ["8", "Interface web do builder (mesmo padrao do ux-deep-agents): upload do projeto, acompanhamento das fases, diff para revisar e aprovar", "Produto", "3-5 dias"],
-                ["9", "Segundo projeto alvo com outro stack (ex.: Node/Express) para medir generalizacao e ajustar skills", "D5, risco", "2 dias"],
+                [
+                    "1",
+                    "Gerar models.ts e o cliente HTTP a partir do /openapi.json do FastAPI (no describe e no integrate), eliminando a tabela manual da skill",
+                    "D2",
+                    "1-2 dias",
+                ],
+                [
+                    "2",
+                    "Feito (D1). Proximo nesta linha: comparar screenshot do Angular com o PNG do Stitch por tela (Playwright) e devolver diferencas ao angular_coder",
+                    "D1 (qualidade visual)",
+                    "2 dias",
+                ],
+                [
+                    "3",
+                    "Ponto de revisao humana no architecture.md (lista de telas, rotas, componentes) antes do build, via interrupt() como no ux-deep-agents",
+                    "D3",
+                    "1 dia",
+                ],
+                [
+                    "4",
+                    "Teste ponta a ponta: subir Postgres e backend em container, rodar o Angular com Playwright contra /ask, /review e SSE",
+                    "D6",
+                    "2 dias",
+                ],
+                [
+                    "5",
+                    "Detectar convencoes do projeto no describe (gerenciador, testes, formatador, porta) e gravar em metadata para o integrate",
+                    "D5",
+                    "1 dia",
+                ],
+                [
+                    "6",
+                    "Reduzir contexto: resumo por tela em vez da spec inteira para cada angular_coder; cache de prompt onde o provedor permitir",
+                    "D7",
+                    "1-2 dias",
+                ],
+                [
+                    "7",
+                    "Tailwind no build, fallback de index.html em /app, path routing; validar skills no startup; limpar run.json apos falha; lint de templates antes do ngc",
+                    "D4, D8, D9, D11",
+                    "1 dia",
+                ],
+                [
+                    "8",
+                    "Interface web do builder (mesmo padrao do ux-deep-agents): upload do projeto, acompanhamento das fases, diff para revisar e aprovar",
+                    "Produto",
+                    "3-5 dias",
+                ],
+                [
+                    "9",
+                    "Segundo projeto alvo com outro stack (ex.: Node/Express) para medir generalizacao e ajustar skills",
+                    "D5, risco",
+                    "2 dias",
+                ],
             ],
             [1.8 * cm, 9.6 * cm, 2.6 * cm, 2.4 * cm],
-        ),
-        Spacer(1, 8),
-        p(
-            "Com os passos 1 a 3 o produto deixa de ser um pipeline de demonstracao e vira uma ferramenta de equipe: contrato "
-            "sempre correto, um unico gerador fiel ao design aprovado e revisao humana barata antes do codigo."
         ),
     ]
     return s
@@ -286,8 +491,14 @@ def story():
 
 def main():
     doc = SimpleDocTemplate(
-        str(OUT), pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm, topMargin=1.8 * cm, bottomMargin=1.8 * cm,
-        title="frontend-builder: relatorio tecnico e de negocio", author="Guilherme Tavares",
+        str(OUT),
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=1.8 * cm,
+        bottomMargin=1.8 * cm,
+        title="frontend-builder: relatorio tecnico e de negocio",
+        author="Guilherme Tavares",
     )
     doc.build(story())
     print(f"PDF gerado em {OUT}")

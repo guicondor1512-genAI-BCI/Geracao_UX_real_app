@@ -31,10 +31,12 @@ def ux_run_inputs(run_dir: Path) -> dict:
         sys.exit(f"{spec} nao existe: a run do ux-deep-agents nao gerou o prototipo front-end.")
     screens = run_dir / "current" / "screens.json"
     reference = run_dir / "outputs" / "frontend"
+    stitch = next((d for d in sorted((run_dir / "outputs" / "stitch").glob("*/")) if any(d.glob("*.html"))), None)
     return {
         "input_path": str(spec),
         "screens_path": str(screens) if screens.exists() else None,
         "reference_dir": str(reference) if (reference / "src").exists() else None,
+        "stitch_dir": str(stitch) if stitch else None,
     }
 
 
@@ -69,7 +71,12 @@ def build_inputs(args: argparse.Namespace) -> dict:
         spec = Path(args.spec) if args.spec else next(iter(sorted((ws.ROOT / "inputs").glob("*.md"))), None)
         if spec is None:
             sys.exit("Nenhuma spec .md em workspace/inputs/")
-        inputs = {"input_path": str(spec), "screens_path": args.screens, "reference_dir": args.reference}
+        inputs = {
+            "input_path": str(spec),
+            "screens_path": args.screens,
+            "reference_dir": args.reference,
+            "stitch_dir": args.stitch,
+        }
     project = project_of(args)
     inputs["project_dir"] = str(project) if project else None
     inputs["dest_dir"] = dest_of(args, project)
@@ -128,6 +135,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     b.add_argument("spec", nargs="?", help="spec .md (default: primeiro .md em workspace/inputs)")
     b.add_argument("--screens")
     b.add_argument("--reference")
+    b.add_argument("--stitch", help="pasta com os HTML das telas aprovadas no Stitch (fonte visual)")
     b.add_argument("--ux-run", metavar="RUN_DIR")
     b.add_argument("--latest-ux-run", action="store_true")
     b.add_argument("--project", help="pasta do projeto: destino <projeto>/frontend + fase de integracao")

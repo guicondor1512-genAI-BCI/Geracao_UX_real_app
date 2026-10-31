@@ -18,15 +18,17 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 
 from app import frontend_check as fc
+from app import theme
 from app import workspace as ws
 
-MAX_FIX_ROUNDS = int(os.getenv("MAX_FIX_ROUNDS", "3"))
+MAX_FIX_ROUNDS = int(os.getenv("MAX_FIX_ROUNDS", "5"))
 
 
 class RunState(TypedDict, total=False):
     input_path: str
     screens_path: str
     reference_dir: str
+    stitch_dir: str
     dest_dir: str
     project_dir: str
     run_id: str
@@ -151,6 +153,10 @@ def ingest(state: RunState) -> RunState:
     frontend = ws.ROOT / ws.FRONTEND
     frontend.mkdir(parents=True)
     fc.scaffold(frontend)
+    themed = False
+    if state.get("stitch_dir"):
+        shutil.copytree(Path(state["stitch_dir"]), current / "stitch", ignore=shutil.ignore_patterns("*.png", "*.md"))
+        themed = theme.apply_theme(current / "stitch", frontend / "src" / "index.html")
     ws.write_run_status(run_id, "running")
     ws.write_metadata(
         run_id,
@@ -158,6 +164,7 @@ def ingest(state: RunState) -> RunState:
         input=state["input_path"],
         screens=state.get("screens_path"),
         reference=state.get("reference_dir"),
+        stitch=state.get("stitch_dir"),
         dest=state.get("dest_dir") or str(ws.dest_dir()),
     )
     ws.log(
@@ -166,6 +173,8 @@ def ingest(state: RunState) -> RunState:
         input=state["input_path"],
         screens=state.get("screens_path"),
         reference=state.get("reference_dir"),
+        stitch=state.get("stitch_dir"),
+        stitch_theme=themed,
     )
     return {"fix_round": 0, "frontend_errors": [], "build_errors": []}
 
@@ -266,10 +275,17 @@ def _append_status(ngc_errors: list[str], build_errors: list[str], destination: 
     shutil.copy2(readme, destination / "README.md")
 
 
+def compiled(state: RunState) -> bool:
+    """Com integracao, vale a ultima checagem (frontend_build dentro de verify_integration); sem ela, ngc e ng build."""
+    if state.get("project_dir"):
+        return not state.get("integration_errors")
+    return not state.get("frontend_errors") and not state.get("build_errors")
+
+
 def finalize(state: RunState) -> RunState:
     run_id = state["run_id"]
     report = ws.usage_report(run_id)
-    ok = not state.get("frontend_errors") and not state.get("build_errors") and not state.get("integration_errors")
+    ok = compiled(state)
     ws.write_run_status(run_id, "done")
     run_dir = ws.snapshot_run(run_id, Path(state["input_path"]))
     ws.write_metadata(
