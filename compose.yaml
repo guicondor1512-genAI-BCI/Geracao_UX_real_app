@@ -1,0 +1,10 @@
+# docker compose run --rm builder build --latest-ux-run --project /target
+services:
+  builder:
+    build: .
+    image: frontend-builder
+    env_file: .env
+    volumes:
+      - ./workspace:/app/workspace
+      - ${TARGET_PROJECT:-../deepagents_jobapplier}:/target
+      - ${UX_WORKSPACE:-../../UX Project/ux-deep-agents/workspace}:/ux

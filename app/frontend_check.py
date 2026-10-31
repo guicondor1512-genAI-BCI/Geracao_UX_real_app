@@ -4,6 +4,7 @@ As dependencias sao instaladas uma vez em workspace/.angular_cache (template + n
 gerado e copiado para la e compilado com strictTemplates.
 """
 
+import os
 import re
 import shutil
 import subprocess
@@ -41,9 +42,14 @@ def scaffold(frontend_dir: Path) -> None:
             shutil.copy2(TEMPLATE / rel, dst)
 
 
+def cache_dir() -> Path:
+    """ANGULAR_CACHE ou workspace/.angular_cache (na imagem Docker fica fora do volume do workspace)."""
+    return Path(os.getenv("ANGULAR_CACHE", ws.ROOT / ".angular_cache"))
+
+
 def ensure_cache() -> Path:
     """Template sempre sincronizado; node_modules instalado so na primeira vez."""
-    cache = ws.ROOT / ".angular_cache"
+    cache = cache_dir()
     shutil.copytree(TEMPLATE, cache, dirs_exist_ok=True)
     if not (cache / "node_modules").exists():
         subprocess.run(
