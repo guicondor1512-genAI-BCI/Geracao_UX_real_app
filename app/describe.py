@@ -11,7 +11,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 
-from app import project
+from app import contract, project
 from app import workspace as ws
 from app.graph import GraphContext, _invoke, _say
 
@@ -33,6 +33,8 @@ def ingest_project(state: DescribeState) -> DescribeState:
     ws.clear_current()
     ws.clear_outputs()
     (ws.ROOT / BRIEF).mkdir(parents=True)
+    api = contract.generate(Path(state["project_dir"]), ws.ROOT / "current", None)
+    ws.log(state["run_id"], "openapi", **api)
     ws.write_run_status(state["run_id"], "running")
     ws.write_metadata(state["run_id"], status="running", mode="describe", project=state["project_dir"])
     ws.log(state["run_id"], "ingest", mode="describe", project=state["project_dir"])
@@ -47,7 +49,8 @@ def describe_phase(state: DescribeState, runtime: Runtime[GraphContext]) -> Desc
         state,
         "describe_phase",
         f"DESCRIBE: o projeto alvo esta montado em /project/. Registre o plano com plan_tool e execute "
-        f"task(backend_analyst) para escrever /outputs/brief/{name}-descricao.md seguindo a skill ux-brief. "
+        f"task(backend_analyst) para escrever /outputs/brief/{name}-descricao.md seguindo a skill ux-brief; a secao 10 "
+        "(contrato da API) vem de /current/contract.md, gerado do openapi.json do backend, se existir. "
         "Quando retornar, leia o arquivo e confira que todas as secoes da skill existem; se faltar algo, peca a "
         "correcao ao mesmo subagent. Responda com um resumo de 5 linhas do que o brief cobre.",
     )

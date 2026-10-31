@@ -68,7 +68,10 @@ def test_build_with_project_runs_integration(project, tmp_path):
     assert json.loads((ws.ROOT / "metadata" / "run_b.json").read_text())["compiled"] is True
     assert (project / "frontend" / "src" / "app" / "app.ts").exists()
     events = [e["event"] for e in ws.read_events("run_b")]
-    assert events.count("integration_check") == 3 and events[-1] == "finalize"
+    assert events.count("integration_check") == 4 and events[-1] == "finalize"
+    assert "openapi" in events and (ws.ROOT / "current" / "contract.md").exists()
+    models = (project / "frontend" / "src" / "app" / "core" / "models.ts").read_text()
+    assert "export interface Privacy" in models
 
 
 def test_integrate_only(project, monkeypatch):

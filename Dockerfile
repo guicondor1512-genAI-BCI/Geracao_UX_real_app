@@ -10,7 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UX_RUNS_DIR=/ux/runs \
     UX_INPUTS_DIR=/ux/inputs \
     PROJECT_TEST_CMD="UV_PROJECT_ENVIRONMENT=/tmp/target-venv TAVILY_API_KEY=dummy uv run --with pytest pytest tests/ -q -x" \
-    PROJECT_FORMAT_CMD="uvx black src tests"
+    PROJECT_FORMAT_CMD="uvx black src tests" \
+    PROJECT_CMD_PREFIX="UV_PROJECT_ENVIRONMENT=/tmp/target-venv"
 
 # Node 22 (ngc, ng build), git (git status do projeto alvo) e uv.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git \

@@ -10,12 +10,12 @@ from typing import Any, Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 
-from app import project
+from app import contract, project
 from app import workspace as ws
 from app.graph import GraphContext, RunState, _invoke, _say, finalize
 from app.tools import project_check as pc
 
-CHECKS: tuple[pc.Kind, ...] = ("format", "tests", "frontend_build")
+CHECKS: tuple[pc.Kind, ...] = ("contract", "format", "tests", "frontend_build")
 
 
 def _frontend_rel(state: RunState) -> str:
@@ -36,8 +36,10 @@ def integrate_phase(state: RunState, runtime: Runtime[GraphContext]) -> RunState
         state,
         "integrate_phase",
         f"INTEGRATE: o backend esta em /project/ e o front-end Angular entregue em {_frontend_rel(state)}. "
+        "/current/contract.md e src/app/core/models.ts foram gerados do openapi.json do backend nesta run: "
+        "o cliente HTTP deve seguir os dois (models.ts nao se edita). "
         "Execute task(integrator) para fazer back e front funcionarem juntos seguindo a skill integration, "
-        "rodando project_check ate 'format', 'tests' e 'frontend_build' passarem. "
+        "rodando project_check ate 'contract', 'format', 'tests' e 'frontend_build' passarem. "
         "Responda com a lista de arquivos alterados e o resultado das checagens.",
     )
     return {"final_message": msg}
@@ -95,6 +97,8 @@ def ingest_integrate(state: RunState) -> RunState:
         state["run_id"], status="running", mode="integrate", project=state["project_dir"], dest=state["dest_dir"]
     )
     ws.log(state["run_id"], "ingest", mode="integrate", project=state["project_dir"], dest=state["dest_dir"])
+    models = Path(state["dest_dir"]) / "src" / "app" / "core" / "models.ts"
+    ws.log(state["run_id"], "openapi", **contract.generate(Path(state["project_dir"]), ws.ROOT / "current", models))
     return {
         "fix_round": 0,
         "frontend_errors": [],

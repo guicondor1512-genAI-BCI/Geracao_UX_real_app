@@ -17,8 +17,8 @@ from langchain_core.callbacks import BaseCallbackHandler, UsageMetadataCallbackH
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 
+from app import contract, theme
 from app import frontend_check as fc
-from app import theme
 from app import workspace as ws
 
 MAX_FIX_ROUNDS = int(os.getenv("MAX_FIX_ROUNDS", "5"))
@@ -154,6 +154,9 @@ def ingest(state: RunState) -> RunState:
     frontend = ws.ROOT / ws.FRONTEND
     frontend.mkdir(parents=True)
     fc.scaffold(frontend)
+    if state.get("project_dir"):
+        api = contract.generate(Path(state["project_dir"]), current, frontend / "src" / "app" / "core" / "models.ts")
+        ws.log(run_id, "openapi", **api)
     themed = False
     if state.get("stitch_dir"):
         shutil.copytree(Path(state["stitch_dir"]), current / "stitch", ignore=shutil.ignore_patterns("*.png", "*.md"))

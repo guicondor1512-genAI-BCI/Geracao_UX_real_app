@@ -24,14 +24,14 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 
 | Fase | Quem | O que faz |
 |---|---|---|
-| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html` e injeta a config Tailwind do Stitch (tema, fontes, plugins) em `src/index.html` (`app/theme.py`) |
+| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html`, injeta a config Tailwind do Stitch em `src/index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
 | `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, design tokens e layout do Stitch, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
 | `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`; cada tela converte o HTML do Stitch em `src/app/screens/<id>/<id>.ts` (estrutura e classes preservadas, conteúdo vira signals e `@for`, estados loading/vazio/erro); depois `README.md` |
 | `verify_frontend` | pipeline | `ngc --noEmit` (strictTemplates) em `workspace/.angular_cache` |
 | `fix_phase` | orquestrador -> `angular_coder` | corrige só os arquivos citados pelo `ngc` |
 | `deliver` | pipeline | `ng build --configuration production` e cópia para `<projeto>/frontend` (ou `FRONTEND_DEST`) |
 | `integrate_phase` | orquestrador -> `integrator` | CORS e `/app` no FastAPI, `useMocks: false`, contrato do front-end = backend, README; `project_check` até passar |
-| `verify_integration` | pipeline | `uvx black`, `pytest` do backend e `ngc` + `ng build` (`PROJECT_TEST_CMD`/`PROJECT_FORMAT_CMD` sobrescrevem) |
+| `verify_integration` | pipeline | `contract` (rotas do cliente existem no openapi.json), `uvx black`, `pytest` do backend e `ngc` + `ng build` (`PROJECT_TEST_CMD`/`PROJECT_FORMAT_CMD` sobrescrevem) |
 | `describe_phase` | orquestrador -> `backend_analyst` | `outputs/brief/<slug>-descricao.md` com as 10 seções da skill `ux-brief`; cópia em `inputs/` e, com `--to-ux`, em `UX_INPUTS_DIR` |
 | `finalize` | pipeline | snapshot em `runs/<run_id>/`, `metadata/<run_id>.json` (inclui `git status` do projeto), spec arquivada |
 
@@ -40,7 +40,10 @@ O projeto alvo aparece para os agentes como `/project/` (`CompositeBackend`); o 
 O projeto Angular base (package.json, angular.json, tsconfig, main.ts, index.html com Tailwind via CDN,
 `environments/environment.ts` com `apiBaseUrl`/`useMocks`, `app.config.ts` com HttpClient e Router) vem de
 `app/templates/angular/`; os agentes geram só `src/app/**` e `README.md`. O app roda sem backend (`useMocks: true`)
-com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato da skill `jobapplier-api`.
+com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato gerado do backend: a cada run com `--project`, o builder importa a
+app FastAPI no venv do projeto, chama `app.openapi()` e grava `current/openapi.json`, `current/contract.md` (tabela de rotas,
+corpos, respostas e schemas) e `src/app/core/models.ts` (uma interface por schema; nunca editado à mão). A checagem `contract`
+da integração confere que toda rota usada em `src/app/core/api/*.ts` existe no schema (D2: sem contrato copiado à mão).
 
 ## Workspace
 
@@ -51,7 +54,7 @@ com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato da skill `jobappli
 | `workspace/outputs/frontend/` | projeto Angular gerado (limpo a cada run) |
 | `workspace/logs/` | `<run_id>.jsonl`: eventos, duração e tokens por fase, erros do `ngc` |
 | `workspace/metadata/` | `<run_id>.json`: entradas, status, arquivos gerados, uso, destino |
-| `workspace/skills/` | `angular-app`, `jobapplier-api`, `ux-brief`, `integration` (SKILL.md lidos pelos subagents) |
+| `workspace/skills/` | `angular-app`, `api-contract`, `ux-brief`, `integration` (SKILL.md lidos pelos subagents) |
 | `workspace/runs/` | snapshot imutável de cada run |
 | `workspace/archive/` | cópia da spec processada |
 | `workspace/.angular_cache/` | template + `node_modules` para `ngc`/`ng build` |
@@ -60,10 +63,16 @@ com `MockJobApplierApi`; `HttpJobApplierApi` segue o contrato da skill `jobappli
 
 ![Versionamento de runs](docs/versionamento_runs.jpeg)
 
-Cada execução recebe um `run_id` (`run_YYYYMMDD_HHMMSS`). O estado mutável fica em `current/` e `outputs/`, limpos a cada
-run; o checkpointer SQLite (`thread_id = run_id`) permite `resume`. No `finalize`, `snapshot_run()` congela `current/`,
-`outputs/` e o log em `runs/<run_id>/`, grava `metadata/<run_id>.json` e arquiva a spec em `archive/`. Um run pendente
-(`current/run.json` com status diferente de `done`) bloqueia novas runs sem `--force`.
+O builder se alimenta de outros microserviços: o projeto backend alvo (`--project`, montado como `/project/`; por
+exemplo `DeepJobFinderAgent` ou `deepagents_jobapplier`) e o snapshot de run do `ux-deep-agents` (`screens.md`,
+`screens.json` e os HTML aprovados no Stitch). O `describe` fecha a ponta inicial do ciclo, gerando o brief que o designer
+aprova no `ux-deep-agents`; o `deliver` + `integrate` fecham a final, escrevendo o Angular integrado de volta no projeto alvo.
+
+Cada execução, disparada pela CLI, pela API HTTP (`POST /runs`) ou pelo Docker, recebe um `run_id` (`run_YYYYMMDD_HHMMSS`).
+O estado mutável fica em `current/` e `outputs/`, limpos a cada run; o checkpointer SQLite (`thread_id = run_id`) permite
+`resume`. No `finalize`, `snapshot_run()` congela `current/`, `outputs/` e o log em `runs/<run_id>/`, grava
+`metadata/<run_id>.json` e arquiva a spec em `archive/`. Um run pendente (`current/run.json` com status diferente de `done`)
+bloqueia novas runs sem `--force` (HTTP 409 na API).
 
 ## Como rodar
 
@@ -159,7 +168,9 @@ fiel às telas aprovadas no Stitch.
 
 `OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_BACKEND_ANALYST`, `MODEL_INTEGRATOR`, `MODEL_ASK`,
 `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
-`PROJECT_FORMAT_CMD`, `BUILDER_WORKSPACE`, `ANGULAR_CACHE`, bloco LangSmith.
+`PROJECT_FORMAT_CMD`, `PROJECT_CMD_PREFIX` (prefixo dos comandos no projeto, ex.: `UV_PROJECT_ENVIRONMENT=...`), `OPENAPI_APP`
+(app FastAPI a importar, default `job_applier.main:app`), `OPENAPI_URL` (buscar o schema de um servidor no ar), `BUILDER_WORKSPACE`,
+`ANGULAR_CACHE`, bloco LangSmith.
 
 ### Versionar e publicar a imagem
 
