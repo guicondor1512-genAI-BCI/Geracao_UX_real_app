@@ -1,0 +1,32 @@
+[project]
+name = "frontend-builder"
+version = "0.1.0"
+description = "Deep agent (LangChain deepagents + LangGraph) that builds the Job Applier Angular front-end from the ux-deep-agents prototype."
+requires-python = ">=3.12"
+dependencies = [
+    "deepagents>=0.7.32",
+    "langchain>=1.4",
+    "langchain-openai>=1.7",
+    "langgraph>=1.2",
+    "langgraph-checkpoint-sqlite>=3.1.2",
+    "pydantic>=2.14",
+    "python-dotenv>=1.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.1", "ruff>=0.17"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["app/templates", "workspace"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/subagents.py" = ["E501"]
+"app/agent.py" = ["E501"]
+"app/graph.py" = ["E501"]
