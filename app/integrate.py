@@ -5,7 +5,7 @@ Usado pelo grafo de build (apos deliver) e pelo comando `integrate` (sobre um fr
 """
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -15,7 +15,7 @@ from app import workspace as ws
 from app.graph import GraphContext, RunState, _invoke, _say, finalize
 from app.tools import project_check as pc
 
-CHECKS = ("format", "tests", "frontend_build")
+CHECKS: tuple[pc.Kind, ...] = ("format", "tests", "frontend_build")
 
 
 def _frontend_rel(state: RunState) -> str:
@@ -75,7 +75,7 @@ def after_integration(state: RunState) -> Literal["integrate_fix", "finalize"]:
     return "finalize"
 
 
-def add_integration(g: StateGraph, after: str | None) -> None:
+def add_integration(g: "StateGraph[RunState, GraphContext, Any, Any]", after: str | None) -> None:
     """Liga integrate_phase -> verify_integration -> (integrate_fix | finalize) a um grafo que ja tem `finalize`."""
     g.add_node("integrate_phase", integrate_phase)
     g.add_node("verify_integration", verify_integration)

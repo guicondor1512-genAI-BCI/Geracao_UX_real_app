@@ -131,8 +131,10 @@ Angular para fora do volume do workspace.
 
 ### Versionar e publicar a imagem
 
-A CI (`.github/workflows/ci.yml`) roda ruff, pytest e o build da imagem em cada PR; em cada push na `main` publica
-`ghcr.io/guicondor1512-genai-bci/frontend-builder` com três tags: a `version` do `pyproject.toml`, `latest` e `sha-<commit>`.
+A CI (`.github/workflows/ci.yml`) roda ruff, mypy, pytest e o build da imagem em cada PR; em cada push na `main` publica
+`ghcr.io/guicondor1512-genai-bci/frontend-builder` com três tags: a `version` do `pyproject.toml`, `latest` e `sha-<commit>`,
+e então chama o webhook `DEPLOY_HOOK` (secret do repositório) com a tag publicada, para o ambiente puxar a nova imagem;
+sem o secret, a etapa de deploy é pulada.
 Para lançar uma versão, suba `version` no `pyproject.toml` no PR. Para usar a imagem publicada, troque `build: .` por
 `image: ghcr.io/guicondor1512-genai-bci/frontend-builder:latest` no `compose.yaml` (ou `docker pull`).
 
@@ -154,4 +156,5 @@ docker push "$IMAGE:$VERSION" && docker push "$IMAGE:latest"
 uv run pytest -q                              # grafo com agente falso, sem LLM nem npm
 TEST_FRONTEND_CHECK=1 uv run pytest -q        # idem, com ngc e ng build reais
 uv run ruff check . && uv run ruff format --check .
+uv run --with mypy mypy app                    # tipos (CI)
 ```

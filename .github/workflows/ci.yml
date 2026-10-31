@@ -18,6 +18,8 @@ jobs:
       - run: uv sync --locked
       - name: Lint
         run: uv run ruff check . && uv run ruff format --check .
+      - name: Type check
+        run: uv run --with mypy mypy app
       - name: Tests
         run: uv run pytest -q
 
@@ -48,3 +50,17 @@ jobs:
             docker tag frontend-builder "$IMAGE:$TAG"
             docker push "$IMAGE:$TAG"
           done
+
+  deploy:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOOK: ${{ secrets.DEPLOY_HOOK }}
+    steps:
+      - name: Deploy (webhook que puxa a nova imagem; pulado sem DEPLOY_HOOK)
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then echo "DEPLOY_HOOK nao configurado: sem deploy"; exit 0; fi
+          curl --fail --silent --show-error -X POST "$DEPLOY_HOOK" \
+            -H 'content-type: application/json' \
+            -d "{\"image\": \"$IMAGE:sha-${GITHUB_SHA::7}\", \"sha\": \"$GITHUB_SHA\"}"

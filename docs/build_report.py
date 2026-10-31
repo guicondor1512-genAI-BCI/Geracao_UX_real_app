@@ -496,7 +496,7 @@ def story():
                 ],
                 [
                     "10",
-                    "Feito: CI (ruff + pytest + build) publica a imagem no GHCR a cada push na main (tags versao, latest e sha). Proximo: rodar o builder como job agendado a cada mudanca de API do projeto alvo",
+                    "Feito: CI (ruff + mypy + pytest + build) publica a imagem no GHCR a cada push na main (tags versao, latest e sha) e chama o webhook DEPLOY_HOOK. Proximo: rodar o builder como job agendado a cada mudanca de API do projeto alvo",
                     "Operacao",
                     "1 dia",
                 ],

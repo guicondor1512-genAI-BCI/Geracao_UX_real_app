@@ -2,8 +2,9 @@
 
 import os
 from pathlib import Path
+from typing import cast
 
-from deepagents import create_deep_agent
+from deepagents import SubAgent, create_deep_agent
 from langchain.chat_models import init_chat_model
 
 from app.models import model_name
@@ -36,9 +37,9 @@ def _model(agent: str):
     return init_chat_model(model_name(agent), streaming=True, max_retries=int(os.getenv("MODEL_MAX_RETRIES", "5")))
 
 
-def _subagent(spec: dict) -> dict:
+def _subagent(spec: dict) -> SubAgent:
     tools = [TOOLS[name] for name in spec.get("tools", [])]
-    return {**spec, "tools": tools, "model": _model(spec["name"])}
+    return cast(SubAgent, {**spec, "tools": tools, "model": _model(spec["name"])})
 
 
 def build_agent(project_dir: Path | None = None):
