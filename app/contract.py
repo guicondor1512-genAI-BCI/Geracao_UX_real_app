@@ -124,20 +124,31 @@ def contract_markdown(spec: dict) -> str:
 
 
 def used_paths(ts_source: str) -> list[str]:
-    """Rotas literais usadas num cliente TypeScript, com `${x}` normalizado para `{}`."""
+    """Rotas literais do cliente TypeScript, `${x}` vira `{}`; uma `${query}` colada ao fim do caminho e descartada."""
     found = []
     for m in PATH_LITERAL.finditer(ts_source):
         path = re.sub(r"\$\{[^}]*\}", "{}", m.group(1).split("?")[0])
+        path = re.sub(r"(?<=[^/])\{\}$", "", path)
         if path not in found:
             found.append(path)
     return found
+
+
+def _segments_match(known: list[str], used: list[str]) -> bool:
+    return all(k == "{}" or u == "{}" or k == u for k, u in zip(known, used))
+
+
+def _covered(known: str, used: str) -> bool:
+    """`used` e a rota inteira ou um prefixo de `known` (`{}` casa qualquer segmento), ou um sufixo literal dela."""
+    k, u = known.strip("/").split("/"), used.strip("/").split("/")
+    return (len(u) <= len(k) and _segments_match(k[: len(u)], u)) or known.endswith(used)
 
 
 def unknown_paths(ts_sources: list[str], spec: dict) -> list[str]:
     """Rotas usadas pelo cliente que nao sao (nem prefixo nem sufixo de) uma rota do schema."""
     known = [re.sub(r"\{[^}]*\}", "{}", p) for p in spec.get("paths", {})]
     used = [p for src in ts_sources for p in used_paths(src)]
-    return [p for p in dict.fromkeys(used) if not any(k == p or k.startswith(p) or k.endswith(p) for k in known)]
+    return [p for p in dict.fromkeys(used) if not any(_covered(k, p) for k in known)]
 
 
 def generate(project_dir: Path, current: Path, models_path: Path | None) -> dict:

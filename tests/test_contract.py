@@ -112,6 +112,13 @@ def test_unknown_paths():
     assert contract.unknown_paths([CLIENT], SPEC) == ["/companies"]
 
 
+def test_unknown_paths_query_and_literal_segments():
+    spec = {"paths": {"/applications": {}, "/files/{job_id}/{kind}/audio/{number}": {}}}
+    client = "get(`/applications${query}`); link: `/files/${jobId}/${kind}/audio/1`; get('/nope/${x}')"
+    assert contract.used_paths(client) == ["/applications", "/files/{}/{}/audio/1", "/nope/{}"]
+    assert contract.unknown_paths([client], spec) == ["/nope/{}"]
+
+
 def test_write_contract(tmp_path: Path):
     current = tmp_path / "current"
     current.mkdir()

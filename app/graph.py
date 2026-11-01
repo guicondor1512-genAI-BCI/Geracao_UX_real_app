@@ -184,6 +184,7 @@ def ingest(state: RunState) -> RunState:
         reference=state.get("reference_dir"),
         stitch=state.get("stitch_dir"),
         dest=state.get("dest_dir") or str(ws.dest_dir()),
+        project=state.get("project_dir"),
     )
     ws.log(
         run_id,

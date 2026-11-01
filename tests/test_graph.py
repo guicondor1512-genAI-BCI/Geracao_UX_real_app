@@ -73,6 +73,7 @@ def test_full_run(tmp_path: Path):
     assert (ws.ROOT / "archive" / "run_test__screens.md").exists()
     meta = json.loads((ws.ROOT / "metadata" / "run_test.json").read_text())
     assert meta["status"] == "done" and "src/app/screens/home/home.ts" in meta["files"]
+    assert "project" in meta  # resume le o projeto daqui para montar /project/
     events = [e["event"] for e in ws.read_events("run_test")]
     assert events[:3] == ["ingest", "plan_phase_start", "plan_phase_end"]
     assert events[-1] == "finalize"
