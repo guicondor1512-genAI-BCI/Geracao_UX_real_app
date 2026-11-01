@@ -8,6 +8,7 @@ from langchain.chat_models import init_chat_model
 
 from app.models import fallback_middleware, model_name
 from app.project import backend
+from app.ratelimit import TokenBudgetMiddleware
 from app.workspace import ensure
 
 READ_ONLY = FilesystemPermission(operations=["write"], paths=["/**"], mode="deny")
@@ -27,7 +28,7 @@ def build_ask_agent(project_dir: Path | None = None):
     return create_deep_agent(
         model=model,
         system_prompt=PROMPT,
-        middleware=fallback_middleware(model_name("ask")),
+        middleware=[TokenBudgetMiddleware(), *fallback_middleware(model_name("ask"))],
         backend=backend(project_dir),
         permissions=[READ_ONLY],
         name="frontend-builder-ask",

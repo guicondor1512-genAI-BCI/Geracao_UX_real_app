@@ -103,4 +103,7 @@ def test_ingest_copies_stitch_html_and_theme(tmp_path: Path):
     styles = (ws.ROOT / ws.FRONTEND / "src" / "styles.css").read_text()
     assert "family=Inter" in index and "cdn.tailwindcss.com" not in index
     assert '@import "tailwindcss";' in styles and "--color-primary: #123456;" in styles
-    assert ws.read_events("run_s")[0]["stitch_theme"] is True
+    event = ws.read_events("run_s")[0]
+    assert event["stitch_theme"] is True and event["screen_sections"] == ["home"]
+    assert (ws.ROOT / "current" / "screens" / "home.md").read_text().startswith("### `home`")
+    assert (ws.ROOT / "current" / "screens" / "_common.md").exists()

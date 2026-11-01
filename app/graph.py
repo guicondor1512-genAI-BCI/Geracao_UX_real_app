@@ -6,6 +6,7 @@ ingest -> plan_phase -> review_architecture --(aprovado | auto_approve)--> build
 A integracao (app/integrate.py) so entra quando um projeto alvo (--project) e informado.
 """
 
+import json
 import os
 import shutil
 import time
@@ -19,7 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
-from app import contract, theme
+from app import contract, ratelimit, spec, theme
 from app import frontend_check as fc
 from app import workspace as ws
 
@@ -139,6 +140,7 @@ def _invoke(runtime: Runtime[GraphContext], state: Mapping[str, Any], phase: str
         duration_s=round(time.perf_counter() - started, 1),
         parallel_task_calls=_parallel_task_calls(result["messages"]),
         **_tokens(usage),
+        **ratelimit.stats(),
     )
     return msg
 
@@ -152,8 +154,11 @@ def ingest(state: RunState) -> RunState:
     ws.clear_outputs()
     current = ws.ROOT / "current"
     shutil.copy2(Path(state["input_path"]), current / "spec.md")
+    ids: list[str] = []
     if state.get("screens_path"):
         shutil.copy2(Path(state["screens_path"]), current / "screens.json")
+        ids = [s["id"] for s in json.loads(Path(state["screens_path"]).read_text(encoding="utf-8")).get("screens", [])]
+    found = spec.write_sections(current / "spec.md", current / "screens", ids)
     if state.get("reference_dir"):
         shutil.copytree(
             Path(state["reference_dir"]),
@@ -188,6 +193,7 @@ def ingest(state: RunState) -> RunState:
         reference=state.get("reference_dir"),
         stitch=state.get("stitch_dir"),
         stitch_theme=themed,
+        screen_sections=found,
     )
     return {"fix_round": 0, "frontend_errors": [], "build_errors": []}
 
@@ -376,6 +382,7 @@ def finalize(state: RunState) -> RunState:
         compiled=ok,
         fix_rounds=state.get("fix_round", 0),
         review_rounds=state.get("review_round", 0),
+        **ratelimit.stats(),
         forced_build=state.get("forced_build", False),
         integration_errors=state.get("integration_errors", []),
         project_changes=state.get("project_changes", ""),
