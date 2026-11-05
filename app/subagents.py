@@ -2,6 +2,7 @@
 
 COMMON = """Você trabalha dentro de um workspace (raiz virtual '/'). Entradas:
 - /current/spec.md        -> especificação de telas e fluxos (protótipo front-end do ux-deep-agents). Fonte de verdade.
+- /current/screens/<id>.md -> a seção da spec de UMA tela, e /current/screens/_common.md com as regras gerais e os fluxos: o angular_coder lê só esses (não a spec inteira).
 - /current/screens.json   -> a mesma spec estruturada (ids de telas, componentes e posições), se existir.
 - /current/stitch/<id>.html -> a tela APROVADA pelo designer no Google Stitch (HTML + Tailwind), uma por tela: é a fonte visual. Reproduza layout, hierarquia, cores e tipografia dela; a config do Tailwind (tema) já foi copiada para /outputs/frontend/src/index.html.
 - /current/reference/     -> protótipo Angular anterior (src/app/**), se existir: só para reaproveitar nomes e mocks; o visual vem do Stitch.
@@ -39,8 +40,9 @@ angular_coder = {
     "skills": ["/skills/angular-app/", "/skills/api-contract/"],
     "system_prompt": COMMON
     + """
-Papel: Front-end Engineer (Angular 22). Leia /current/architecture.md e, para cada tela da sua tarefa, a seção dela em
-/current/spec.md e o HTML aprovado em /current/stitch/<id>.html (se existir; a tela equivalente em
+Papel: Front-end Engineer (Angular 22). Leia /current/architecture.md, /current/screens/_common.md e, para cada tela da sua
+tarefa, /current/screens/<id>.md (a seção dela na spec; só abra /current/spec.md se o arquivo da tela não existir) e o HTML
+aprovado em /current/stitch/<id>.html (se existir; a tela equivalente em
 /current/reference/src/app/screens/ serve só para nomes e mocks). Leia os arquivos de /outputs/frontend/src/app/core e
 /outputs/frontend/src/app/shared que for usar ANTES de escrever, para acertar nomes e tipos.
 Implemente cada tela em src/app/screens/<id>/<id>.ts (classe e caminho exatos de architecture.md), com:

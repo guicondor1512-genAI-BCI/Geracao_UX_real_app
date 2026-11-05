@@ -25,7 +25,7 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 
 | Fase | Quem | O que faz |
 |---|---|---|
-| `ingest` | pipeline | copia spec, `screens.json`, `current/stitch/<id>.html`, converte a config Tailwind v3 do Stitch num bloco `@theme` v4 em `src/styles.css` e leva as fontes ao `index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
+| `ingest` | pipeline | copia spec, `screens.json`, fatia a spec em `current/screens/<id>.md` + `_common.md` (cada `angular_coder` lê só as suas telas), `current/stitch/<id>.html`, converte a config Tailwind v3 do Stitch num bloco `@theme` v4 em `src/styles.css` e leva as fontes ao `index.html` (`app/theme.py`) e, com `--project`, gera `current/openapi.json`, `current/contract.md` e `src/app/core/models.ts` do backend (`app/openapi.py`, `app/contract.py`) |
 | `plan_phase` | orquestrador -> `architect` | `current/plan.md`, `current/architecture.md` (tela -> rota -> arquivo, design tokens e layout do Stitch, shared, modelos, serviços), núcleo do app (`app.ts`, `app.routes.ts`, `core/**`, `shared/**`) |
 | `review_architecture` | revisor humano | pausa (`interrupt()`) com `architecture.md` e `plan.md`: aprovar segue; feedback grava `current/feedback.md` e volta ao `architect` (`revise_architecture`, até `MAX_REVIEW_ROUNDS`, default 3; depois segue com aviso). Terminal pergunta; API deixa a run `paused` até `POST /runs/{id}/decision`; `--auto-approve` pula |
 | `build_phase` | orquestrador -> N x `angular_coder` em paralelo | um lote de telas por `task()`; cada tela converte o HTML do Stitch em `src/app/screens/<id>/<id>.ts` (estrutura e classes preservadas, conteúdo vira signals e `@for`, estados loading/vazio/erro); depois `README.md` |
@@ -38,6 +38,13 @@ integrate: ingest_integrate -> integrate_phase (integrator) -> verify_integratio
 | `finalize` | pipeline | snapshot em `runs/<run_id>/`, `metadata/<run_id>.json` (inclui `git status` do projeto), spec arquivada |
 
 O projeto alvo aparece para os agentes como `/project/` (`CompositeBackend`); o workspace continua em `/`.
+
+**Limite de tokens por minuto (D12).** Todos os agentes compartilham um orçamento de tokens por minuto (`app/ratelimit.py`,
+`TPM_BUDGET`, default 1,5M, abaixo dos 2M/min da OpenAI para o Luna): cada chamada de modelo é estimada antes de sair e
+espera a janela de 60 s ter espaço, em vez de tomar 429 e esgotar os retries com quatro `angular_coder` em paralelo. As esperas
+saem no log de cada fase (`rate_limit_waits`, `rate_limit_waited_s`) e no metadata. Além disso o orquestrador dispara no máximo
+`MAX_PARALLEL_CODERS` (3) lotes por mensagem, e cada coder lê só a seção da spec das suas telas. Com `OPENROUTER_API_KEY`, um
+429 que ainda escape cai no mesmo modelo via OpenRouter.
 
 O projeto Angular base (package.json com Tailwind v4 compilado no build via `.postcssrc.json`, angular.json, tsconfig, main.ts,
 index.html, `styles.css` com `@import "tailwindcss"` e o `@theme` do Stitch, `environments/environment.ts` com
@@ -184,7 +191,7 @@ fiel às telas aprovadas no Stitch.
 ### Variáveis
 
 `OPENAI_API_KEY`, `MODEL`, `MODEL_ARCHITECT`, `MODEL_ANGULAR_CODER`, `MODEL_BACKEND_ANALYST`, `MODEL_INTEGRATOR`, `MODEL_ASK`,
-`OPENROUTER_API_KEY` (fallback do mesmo modelo no OpenRouter em 429/5xx), `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `MAX_REVIEW_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
+`OPENROUTER_API_KEY` (fallback do mesmo modelo no OpenRouter em 429/5xx), `TPM_BUDGET`, `MAX_PARALLEL_CODERS`, `MODEL_MAX_RETRIES`, `MAX_FIX_ROUNDS`, `MAX_REVIEW_ROUNDS`, `FRONTEND_CHECK`, `FRONTEND_DEST`, `UX_RUNS_DIR`, `UX_INPUTS_DIR`, `PROJECT_TEST_CMD`,
 `PROJECT_FORMAT_CMD`, `PROJECT_CMD_PREFIX` (prefixo dos comandos no projeto, ex.: `UV_PROJECT_ENVIRONMENT=...`), `OPENAPI_APP`
 (app FastAPI a importar, default `job_applier.main:app`), `OPENAPI_URL` (buscar o schema de um servidor no ar), `BUILDER_WORKSPACE`,
 `ANGULAR_CACHE`, bloco LangSmith.
